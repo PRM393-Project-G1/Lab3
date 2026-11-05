@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && request.resource.data.role == 'user';
+      allow update: if isOwner(uid)
+        && request.resource.data.role == resource.data.role;
+    }
+
+    match /users/{uid}/library/{arxivId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /users/{uid}/reports/{reportId} {
+      allow read, create: if isOwner(uid);
+    }
+
+    // The backend writes these with the Admin SDK. The client only marks read.
+    match /users/{uid}/notifications/{notificationId} {
+      allow read: if isOwner(uid);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+
+    // Shared results. Only the backend writes them.
+    match /analyses/{analysisId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

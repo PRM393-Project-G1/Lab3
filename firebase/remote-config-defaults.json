@@ -1,0 +1,7 @@
+{
+  "weak_topic_threshold": 0.5,
+  "weak_topic_min_refs": 3,
+  "max_recent_checks": 10,
+  "enable_report_export": true,
+  "enable_cloud_upload": false
+}
