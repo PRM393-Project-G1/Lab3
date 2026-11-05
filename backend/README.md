@@ -73,6 +73,14 @@ Lệnh này chạy đúng các bước của service và ghi kết quả thật 
 
 Bài chạy khi chưa có key LLM thì chưa được kiểm tra reference bịa. Sau khi thêm key, chạy lại bằng `--force`.
 
+## Gửi lại push
+
+Gửi push `Analysis done` thật cho mọi tài khoản đã đăng ký token, kèm một mục trong Notifications, không phải phân tích lại. Dùng để thử push khi app đang mở, chạy nền và đã tắt, và làm `E2E_PUSH_COMMAND` cho test ARTEMIS TC-10.
+
+```bash
+.venv/Scripts/python -m orchestrator.push 1706.03762
+```
+
 ## Cài Saffron
 
 **Máy chủ tải model của Saffron đã ngừng hoạt động** (`server1.nlp.insight-centre.org/saffron-datasets` trả về 404), nên không chạy được theo hướng dẫn gốc. Bộ cấu hình ở đây thay thế như sau:

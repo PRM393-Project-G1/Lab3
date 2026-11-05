@@ -139,6 +139,7 @@ sequenceDiagram
 | Backend chạy một job mỗi lần, lệnh dừng diệt cả tiến trình con | Mỗi job tốn nhiều bộ nhớ và dễ chạm rate limit của API bên ngoài |
 | Khởi động lại backend thì job đang chạy thành `failed` | Không thì app chờ mãi một job không còn tồn tại |
 | Mỗi reference chỉ thuộc tối đa 5 chủ đề mạnh nhất (theo tf-idf) | Toàn văn nhắc đến hầu hết các thuật ngữ; nếu giữ hết thì chủ đề nào cũng chứa gần đủ reference và "chủ đề yếu" mất ý nghĩa |
+| Sửa reference trong `.bbl` kiểu ACL trước khi kiểm tra (`orchestrator/bbl_repair.py`) | RefChecker đọc nhầm năm thành tiêu đề, nên tìm sai bài. Với `1508.04025`: 15/15 mất tiêu đề và 1 verified trước khi sửa; 0/15 và 9 verified sau khi sửa |
 | Saffron dùng model thay thế (POS tải lại, mô hình dựng cây train lại) | Máy chủ model gốc đã ngừng hoạt động; xem `backend/README.md` |
 | Gói Spark: PDF lưu trên máy, không upload (`enable_cloud_upload = false`) | Spark không có bucket Cloud Storage. Code upload vẫn giữ và có test, bật lại được qua Remote Config |
 | `kotlin.incremental=false`, `compileSdk = 37` | Pub cache ở ổ C, dự án ở ổ D; `receive_sharing_intent` yêu cầu SDK 37 |

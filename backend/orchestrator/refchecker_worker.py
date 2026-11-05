@@ -18,18 +18,27 @@ _EVENTS = {"title_updated", "references_extracted", "progress", "phase"}
 async def _run(args: argparse.Namespace, events) -> dict:
     from backend.refchecker_wrapper import ProgressRefChecker
 
+    from .bbl_repair import repair_year_first
+
+    class Checker(ProgressRefChecker):
+        async def _extract_references_from_bibtex(self, bibtex_content: str) -> tuple:
+            references, method = await super()._extract_references_from_bibtex(bibtex_content)
+            return repair_year_first(references or [], bibtex_content), method
+
     async def on_progress(event_type: str, data: dict) -> None:
         if event_type in _EVENTS:
             summary = {key: value for key, value in data.items() if key != "references"}
             events.write(f"{EVENT_PREFIX}{json.dumps({'event': event_type, **summary}, default=str)}\n")
             events.flush()
 
-    checker = ProgressRefChecker(
+    checker = Checker(
         llm_provider=args.llm_provider,
         llm_model=args.llm_model,
         use_llm=bool(args.llm_provider),
         progress_callback=on_progress,
         semantic_scholar_api_key=os.environ.get("SEMANTIC_SCHOLAR_API_KEY"),
+        # In the job's folder: RefChecker's shared cache would restore misread references.
+        cache_dir=os.path.join(os.getcwd(), "cache"),
         hallucination_provider=args.llm_provider if args.hallucinations else None,
         hallucination_model=args.llm_model if args.hallucinations else None,
         detection_mode="references",

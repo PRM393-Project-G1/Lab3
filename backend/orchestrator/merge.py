@@ -105,6 +105,10 @@ def summarize(references: Iterable[Mapping[str, Any]]) -> dict[str, int]:
     return {"totalRefs": len(statuses), **count_statuses(statuses)}
 
 
+def done_message(title: str, summary: Mapping[str, Any]) -> str:
+    return f"{title} · {summary.get('hallucinated', 0) + summary.get('error', 0)} flagged"
+
+
 def _score(value: Any) -> float:
     # Saffron writes "NaN" for the links it has no score for.
     try:

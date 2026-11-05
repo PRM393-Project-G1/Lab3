@@ -165,10 +165,9 @@ class Pipeline:
                 "progress": {"stage": "topics", "percent": 100, "processedRefs": len(references)},
             },
         )
-        flagged = summary["hallucinated"] + summary["error"]
         try:
             await asyncio.to_thread(
-                store.notify_done, uid, analysis_id, "Analysis done", f"{title} · {flagged} flagged"
+                store.notify_done, uid, analysis_id, "Analysis done", merge.done_message(title, summary)
             )
         except Exception:  # The results are saved; a missed push does not undo them.
             logger.exception("Couldn't notify %s about %s", uid, analysis_id)

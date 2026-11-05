@@ -199,9 +199,9 @@ class Steps:
                     text = self._pdf_text(enrichment["oa_pdf_url"])
                 source = "fulltext" if text else ""
                 if not text and enrichment.get("abstract"):
-                    text, source = enrichment["abstract"], "abstract"
+                    text, source = clean_fulltext(enrichment["abstract"]), "abstract"
                 if not text:
-                    text, source = raw.get("citation_context") or "", "citation"
+                    text, source = clean_fulltext(raw.get("citation_context") or ""), "citation"
 
                 documents.append(
                     {

@@ -100,6 +100,13 @@ class FirebaseStore:
         if pending:
             batch.commit()
 
+    def users_with_tokens(self) -> list[str]:
+        return [
+            snapshot.id
+            for snapshot in self._db.collection("users").stream()
+            if (snapshot.to_dict() or {}).get("fcmTokens")
+        ]
+
     def notify_done(self, uid: str, analysis_id: str, title: str, body: str) -> None:
         """Adds the inbox item and sends the push. A push is never worth failing a job."""
         user = self._db.collection("users").document(uid)

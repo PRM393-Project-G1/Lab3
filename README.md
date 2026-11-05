@@ -4,6 +4,8 @@ Hiểu nhanh một bài báo qua danh sách tham khảo của nó: bài dựa tr
 
 PRM393 Lab 3. App Android (Flutter + Firebase). Backend do nhóm chạy trên laptop, truy cập qua Tailscale, dùng hai dự án mã nguồn mở [RefChecker](https://github.com/markrussinovich/refchecker) và [Saffron](https://github.com/insight-centre/saffron).
 
+**Muốn chạy thử:** xem [HUONG_DAN_CHAY.md](HUONG_DAN_CHAY.md).
+
 ## Tài liệu
 
 | Nội dung | File |
