@@ -132,7 +132,9 @@ class AnalyzeViewModel extends BaseViewModel {
       if (!cached && !(existing?.isRunning ?? false)) {
         await _api.startAnalysis(id, aiAssisted: aiCheck);
       }
-      await _library.addOrTouch(uid, id);
+      // A Firestore write only finishes once the server answers, so waiting
+      // for it would keep a cached result from opening while offline.
+      unawaited(_touch(uid, id));
       return AnalyzeTarget(id, ready: cached);
     } on ApiException catch (error) {
       _problem = error.failure == ApiFailure.rejected
@@ -146,6 +148,14 @@ class AnalyzeViewModel extends BaseViewModel {
     } finally {
       _submitting = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _touch(String uid, String id) async {
+    try {
+      await _library.addOrTouch(uid, id);
+    } catch (error, stack) {
+      await _crashlytics.recordNonFatal(error, stack, reason: 'touch_library');
     }
   }
 

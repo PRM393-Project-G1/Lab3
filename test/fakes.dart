@@ -222,6 +222,7 @@ class FakeLibrary implements LibraryRepository {
   final renamed = <String, String>{};
   List<LibraryEntry> entries = const [];
   bool failWrites = false;
+  bool hangTouch = false;
 
   void emit(List<LibraryEntry> value) {
     entries = value;
@@ -237,8 +238,11 @@ class FakeLibrary implements LibraryRepository {
   }
 
   @override
-  Future<void> addOrTouch(String uid, String arxivId) async =>
-      touched.add(arxivId);
+  Future<void> addOrTouch(String uid, String arxivId) async {
+    if (failWrites) throw StateError('offline');
+    touched.add(arxivId);
+    if (hangTouch) await Completer<void>().future;
+  }
 
   @override
   Future<void> rename(String uid, String arxivId, String title) async {

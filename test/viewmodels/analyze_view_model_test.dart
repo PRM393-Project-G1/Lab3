@@ -19,6 +19,7 @@ void main() {
   late FakeAnalytics analytics;
   late FakeRemoteConfig remoteConfig;
   late FakeDevice device;
+  late FakeCrashlytics crashlytics;
   late ServerSettings settings;
 
   AnalyzeViewModel build({String? sharedText}) => AnalyzeViewModel(
@@ -30,7 +31,7 @@ void main() {
     settings: settings,
     remoteConfig: remoteConfig,
     analytics: analytics,
-    crashlytics: FakeCrashlytics(),
+    crashlytics: crashlytics,
     device: device,
     sharedText: sharedText,
   );
@@ -43,6 +44,7 @@ void main() {
     analytics = FakeAnalytics();
     remoteConfig = FakeRemoteConfig();
     device = FakeDevice();
+    crashlytics = FakeCrashlytics();
     settings = ServerSettings(await SharedPreferences.getInstance());
   });
 
@@ -70,6 +72,29 @@ void main() {
     final vm = build()..setInput('nope');
     expect(await vm.submit(), isNull);
     expect(api.started, isEmpty);
+  });
+
+  test('a library write that never finishes does not block opening', () async {
+    analyses.analyses[id] = doneAnalysis(id);
+    library.hangTouch = true;
+    final vm = build()..setInput(id);
+
+    final target = await vm.submit();
+
+    expect(target?.ready, isTrue);
+    expect(vm.submitting, isFalse);
+  });
+
+  test('a failed library write is logged and still opens', () async {
+    analyses.analyses[id] = doneAnalysis(id);
+    library.failWrites = true;
+    final vm = build()..setInput(id);
+
+    final target = await vm.submit();
+    await pumpEventQueue();
+
+    expect(target?.ready, isTrue);
+    expect(crashlytics.recorded, ['touch_library']);
   });
 
   test('a finished result opens directly, with no backend call', () async {

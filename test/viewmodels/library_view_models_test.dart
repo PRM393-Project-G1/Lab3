@@ -20,17 +20,29 @@ void main() {
   group('History', () {
     late FakeLibrary library;
     late FakeAnalyses analyses;
+    late FakeCrashlytics crashlytics;
 
     HistoryViewModel build() => HistoryViewModel(
       library: library,
       feed: LibraryFeed(library, analyses),
       auth: FakeAuth(),
-      crashlytics: FakeCrashlytics(),
+      crashlytics: crashlytics,
     );
 
     setUp(() {
       library = FakeLibrary();
       analyses = FakeAnalyses();
+      crashlytics = FakeCrashlytics();
+    });
+
+    test('a failed touch is logged, not thrown', () async {
+      library.failWrites = true;
+
+      await build().touch(
+        LibraryEntry(arxivId: id, addedAt: DateTime(2026, 11, 5)),
+      );
+
+      expect(crashlytics.recorded, ['edit_history']);
     });
 
     test('no history is the empty state', () async {

@@ -17,9 +17,8 @@ abstract class ReportFiles {
 }
 
 class DeviceReportFiles implements ReportFiles {
-  Future<Directory> _root() async => Directory(
-    '${(await getApplicationDocumentsDirectory()).path}/reports',
-  );
+  Future<Directory> _root() async =>
+      Directory('${(await getApplicationDocumentsDirectory()).path}/reports');
 
   @override
   Future<String> save({

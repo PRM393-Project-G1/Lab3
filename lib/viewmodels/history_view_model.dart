@@ -102,10 +102,8 @@ class HistoryViewModel extends BaseViewModel {
   static DateTime _startOfDay(DateTime time) =>
       DateTime(time.year, time.month, time.day);
 
-  Future<void> touch(LibraryEntry entry) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid != null) await _library.addOrTouch(uid, entry.arxivId);
-  }
+  Future<void> touch(LibraryEntry entry) =>
+      _write((uid) => _library.addOrTouch(uid, entry.arxivId));
 
   Future<bool> rename(LibraryEntry entry, String title) =>
       _write((uid) => _library.rename(uid, entry.arxivId, title.trim()));
