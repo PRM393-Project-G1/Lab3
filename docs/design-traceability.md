@@ -106,7 +106,8 @@ Thầy đã duyệt đổi sang sản phẩm RefCheck + Saffron, và nhóm làm 
 | Export | `Copy link` hiện snackbar `Link copied` | Sheet đóng lại rồi mới hiện snackbar | Snackbar nằm dưới sheet nên không thấy được | Không cần |
 | Reference | Dialog `Likely fabricated` chỉ tự mở | Banner có thêm nút `Details` để mở lại | Đóng dialog xong không còn cách xem lại | Chưa |
 | Analyzing | `Back` về `/analyze` | Quay lại màn trước; không có lịch sử thì về `/analyze` | Mở từ History thì nên về History | Không cần |
-| Export | `Uploading` → `Uploaded`, có `Copy link` | Mặc định `Creating PDF…` → `Saved on device`, có `Open` và `Share`. Upload chỉ chạy khi bật `enable_cloud_upload` | Nhóm dùng gói Spark, không có bucket Cloud Storage | Có trong script Figma, chưa chạy |
-| Export | `Upload failed` | `Export failed` | Trên Spark, lỗi đến từ khâu tạo hoặc lưu PDF, không phải upload | Có trong script Figma, chưa chạy |
+| Export | `Uploading` → `Uploaded`, có `Copy link` | Mặc định `Creating PDF…` → `Saved on device`, có `Open` và `Share`. Upload chỉ chạy khi bật `enable_cloud_upload` | Nhóm dùng gói Spark, không có bucket Cloud Storage | Có |
+| Export | `Upload failed` | `Export failed` | Trên Spark, lỗi đến từ khâu tạo hoặc lưu PDF, không phải upload | Có |
+| Export | Nút `Done`, `Cancel`, `×` trong sheet | Kéo xuống hoặc chạm ngoài sheet để đóng | Cùng tác dụng, ít chữ hơn | Không cần |
 | Sign-in | Logo Google, logo Realtron | Icon Material thay thế | Chưa có file ảnh; cần thay trước khi nộp | Không cần |
 | Chữ mới | Không có trong `user-flow.md` | `Sign-in failed`, `Couldn't start`, `N with errors`, `Couldn't save`, `Couldn't delete`, `Error logged`, `Setup needed`, `No app can open PDF`, nút `View` trên snackbar push | Trường hợp lỗi thật mà thiết kế chưa có | Chưa |

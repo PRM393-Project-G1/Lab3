@@ -88,11 +88,12 @@
 | History — Error | Retry | History — Loading | Thử lại | Done |
 | History — Loading | Tự chuyển sau 1,5 giây | History | Tải xong | Cần kiểm tra trigger |
 | Paper Overview | Nút Report trên app bar | Export: Creating PDF | Chính | Done |
-| Export: Creating PDF | Tự chuyển sau 1,5 giây | Export: Uploading 64% | Chính | Done |
-| Export: Uploading 64% | Tự chuyển sau 1,5 giây | Export: Uploaded | Chính | Done |
-| Export: Uploading 64% | Cancel | Export — Upload failed | C-E1 | Done |
+| Export: Creating PDF | Tự chuyển sau 1,5 giây | Export: Saved | Chính | Done |
+| Export: Creating PDF | Cancel | Export — Upload failed | C-E1 | Done |
 | Export — Upload failed | Retry | Export: Creating PDF | Thử lại | Done |
-| Export: Uploaded | Share | Paper Overview | Xong | Done |
+| Export: Saved | Done | Paper Overview | Xong | Done |
+| Export: Uploading 64% | Tự chuyển sau 1,5 giây | Export: Uploaded | Chỉ khi bật `enable_cloud_upload`; không tới được khi Present | Done |
+| Export: Uploaded | Done | Paper Overview | Chỉ khi bật `enable_cloud_upload` | Done |
 
 ## Dùng chung
 

@@ -764,6 +764,10 @@
     await f('History — Loading').setReactionsAsync(nav(f('History'), { type: 'AFTER_TIMEOUT', timeout: 1.5 }));
     await f('Export: Creating PDF').setReactionsAsync(nav(f('Export: Saved') || f('Export: Uploading 64%'), { type: 'AFTER_TIMEOUT', timeout: 1.5 }));
     done.push('Loading', 'Creating PDF');
+    const savedDone = f('Export: Saved') && textIn(f('Export: Saved'), 'Done');
+    if (savedDone) { await savedDone.setReactionsAsync(nav(f('Paper Overview'))); done.push('Saved Done'); }
+    const creatingCancel = textIn(f('Export: Creating PDF'), 'Cancel');
+    if (creatingCancel) { await creatingCancel.setReactionsAsync(nav(f('Export — Upload failed'))); done.push('Creating Cancel'); }
     const bell = f('Analyze').findOne((n) => n.name === 'Bell');
     if (bell) { await bell.setReactionsAsync(nav(f('Notifications'))); done.push('Bell'); }
     const overview = f('Paper Overview');

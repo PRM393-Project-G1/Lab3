@@ -320,11 +320,15 @@ Page 03 có 39 frame, chia 5 Section: Entry (4), Flow A (12), Flow B (8), Flow C
 
 **Còn lại:** dialog Rename và Delete nằm trên frame cao hơn lớp nền mờ, nên phần cuối frame không được làm mờ. Chỉ ảnh hưởng hình tĩnh trên Figma.
 
-### Script dựng phần còn lại của Figma (05/11/2026, chưa chạy)
+### Script dựng phần còn lại của Figma (05/11/2026, đã chạy)
 
 Làm tay bằng chuột quá chậm và dễ sai, nên phần còn lại nằm trong một script: `design/figma-setup/realtron-figma-setup.js`. Script dựng page 01, 02, 04, 05, gắn màu và chữ của page 03 + 06 vào token, sửa các lỗi prototype đã phát hiện (`See all` nối nhầm màn, `History — Loading` sai trigger, thời gian chờ của `Export: Creating PDF`) và đặt 4 điểm bắt đầu.
 
-Khi chạy xong cần ghi lại kết quả tại đây. Những bản sao khác trên page 03 không được đổi thành instance; chỉ Bottom nav được thay.
+Kết quả đọc lại từ file Figma sau khi chạy: 40 Variables, 10 Text styles, 2 Effect styles; page 01 có sitemap và 3 flow; page 02 có 12 màn; page 05 có 22 component; 895/895 chữ trên page 03 dùng Text style; 2471/2491 lớp tô dùng Variable (phần còn lại gồm nền section, gradient và vector); 13 Bottom nav là instance; page 06 có 4 điểm bắt đầu, không tương tác nào trỏ tới khung không tồn tại.
+
+Lần chạy này làm lộ một lỗi của chính script: khung `Export: Saved` mới thêm không có đường ra, và khi `Creating PDF` chuyển sang `Saved` thì không còn tới được nhánh C-E1. Đã sửa bằng `design/figma-setup/realtron-figma-fix-export.js`: 40 khung đều có đường đi tiếp, chỉ `Export: Uploading 64%` và `Export: Uploaded` không tới được, vì chúng chỉ dùng khi bật `enable_cloud_upload`. **Chưa thử bằng Present.**
+
+Những bản sao khác trên page 03 không được đổi thành instance; chỉ Bottom nav được thay.
 
 ## 5. Tổng kết vòng lặp
 
