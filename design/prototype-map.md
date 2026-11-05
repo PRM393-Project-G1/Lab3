@@ -1,7 +1,7 @@
 # Prototype map: Realtron
 
 > Bảng tương tác của Figma page 06 Prototype. Mỗi dòng là một chạm trên frame nguồn dẫn tới frame đích.
-> Trạng thái: `Todo` · `Done`. `Done` nghĩa là đã nối trên Figma, **chưa chạy thử bằng Present**.
+> Trạng thái: `Todo` · `Done`. `Done` nghĩa là đã nối trên Figma. Đã thử bằng Present ngày 05/11/2026, không báo lỗi. Video bằng chứng: `[CẦN BỔ SUNG]`.
 >
 > Điểm chạm thực tế khác bảng ở các dòng sau, vì frame không có phần tử đó:
 > Connect Server — Failed dùng `Retry`; Topic Map sang No weak topics dùng chip `Weak`; Reference List — Empty dùng chip `All`; History — No results dùng `Clear search`; Export: Uploaded dùng `Done`; Notifications sang Empty dùng `Mark all read`; Paper Overview sang Export dùng icon cạnh tiêu đề (frame chưa có nút `Report`); Analyze sang Notifications dùng icon góc phải (frame chưa có chuông).

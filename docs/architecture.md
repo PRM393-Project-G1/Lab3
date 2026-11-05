@@ -18,6 +18,7 @@ lib/
 └── widgets/         # Component của design system, trạng thái truyền qua tham số
 test/                # Unit test ViewModel (service giả), widget test design system
 e2e_test/            # Test ARTEMIS (pytest)
+backend/             # Orchestrator FastAPI: chạy RefChecker, Saffron; ghi Firestore, gửi FCM
 firebase/            # storage.rules, firestore.rules, indexes, remote-config-defaults.json
 design/              # Persona, flow, DESIGN.md, nhật ký AI, ảnh Stitch
 handoff/             # flutter-handoff.md
@@ -29,7 +30,7 @@ Khác cấu trúc gợi ý của đề ở hai điểm:
 - `lib/theme/` được tách riêng, đúng yêu cầu mục 5 của đề.
 - Có thêm `design/` và `handoff/` ở gốc, vì đề coi chúng là đặc tả của app.
 
-Backend (Orchestrator + RefChecker + Saffron) không nằm trong app. Nó nằm ở `backend/` do thành viên BE phụ trách.
+Backend (Orchestrator) nằm ở `backend/`, tách khỏi code Flutter, và gọi RefChecker, Saffron như công cụ bên ngoài: mã nguồn của hai dự án đó không nằm trong repo. Đề không có thư mục này trong cấu trúc gợi ý; thêm vào vì đề tài cần một service riêng.
 
 ## 2. Sơ đồ tầng
 
@@ -135,6 +136,10 @@ sequenceDiagram
 | Số đếm của chủ đề cha tính lại từ `refIds` của cả nhánh | Một reference nằm trong hai chủ đề con chỉ được đếm một lần |
 | Chủ đề yếu: (Hallucinated + Error) / tổng ≥ `weak_topic_threshold` và tổng ≥ `weak_topic_min_refs` | Warning không tính, vì chỉ là khác biệt nhỏ về metadata |
 | Push khi app đang mở hiện bằng snackbar | Không cần thêm thư viện local notification |
+| Backend chạy một job mỗi lần, lệnh dừng diệt cả tiến trình con | Mỗi job tốn nhiều bộ nhớ và dễ chạm rate limit của API bên ngoài |
+| Khởi động lại backend thì job đang chạy thành `failed` | Không thì app chờ mãi một job không còn tồn tại |
+| Mỗi reference chỉ thuộc tối đa 5 chủ đề mạnh nhất (theo tf-idf) | Toàn văn nhắc đến hầu hết các thuật ngữ; nếu giữ hết thì chủ đề nào cũng chứa gần đủ reference và "chủ đề yếu" mất ý nghĩa |
+| Saffron dùng model thay thế (POS tải lại, mô hình dựng cây train lại) | Máy chủ model gốc đã ngừng hoạt động; xem `backend/README.md` |
 | Gói Spark: PDF lưu trên máy, không upload (`enable_cloud_upload = false`) | Spark không có bucket Cloud Storage. Code upload vẫn giữ và có test, bật lại được qua Remote Config |
 | `kotlin.incremental=false`, `compileSdk = 37` | Pub cache ở ổ C, dự án ở ổ D; `receive_sharing_intent` yêu cầu SDK 37 |
 

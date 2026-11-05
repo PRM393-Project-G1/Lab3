@@ -20,6 +20,7 @@ PRM393 Lab 3. App Android (Flutter + Firebase). Backend do nhóm chạy trên la
 | Sự kiện Analytics | [docs/analytics-plan.md](docs/analytics-plan.md) |
 | Test plan, test E2E | [docs/test-plan.md](docs/test-plan.md), [e2e_test/](e2e_test/README.md) |
 | Cấu hình Firebase | [firebase/README.md](firebase/README.md) |
+| Backend (Orchestrator) | [backend/README.md](backend/README.md) |
 
 ## Phiên bản
 

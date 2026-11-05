@@ -1,0 +1,31 @@
+{
+  "termExtraction": {
+    "threshold": 0.0,
+    "maxTerms": 40,
+    "ngramMin": 1,
+    "ngramMax": 4,
+    "minTermFreq": 1,
+    "method": "voting",
+    "features": ["comboBasic", "totalTfIdf", "cValue", "residualIdf"],
+    "corpus": null,
+    "baseFeature": "comboBasic",
+    "posModel": "${saffron.home}/models/en-pos-maxent.bin",
+    "tokenizerModel": null,
+    "lemmatizerModel": null,
+    "stopWords": null,
+    "blacklist": [
+      "abstract", "appendix", "arxiv", "conference", "et al", "experts", "figure", "fig",
+      "introduction", "journal", "one", "preprint", "proceedings", "Proceedings", "references",
+      "results", "table", "university"
+    ],
+    "oneTermPerDoc": true
+  },
+  "taxonomy": {
+    "returnRDF": false,
+    "modelFile": "${saffron.home}/models/default.json",
+    "search": {
+      "algorithm": "greedy",
+      "score": "simple"
+    }
+  }
+}

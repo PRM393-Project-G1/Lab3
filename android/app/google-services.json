@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1089055864452",
+    "firebase_url": "https://realtron-874ac-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "realtron-874ac",
+    "storage_bucket": "realtron-874ac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1089055864452:android:b17d1d73a522a6b9e9b4d1",
+        "android_client_info": {
+          "package_name": "vn.fpt.prm393.realtron"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1089055864452-7q0c9kconp4tonjrp77upg36kf6lgoat.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.fpt.prm393.realtron",
+            "certificate_hash": "e2515f028ddfb897c3ab0d174751b69c4f38dcdd"
+          }
+        },
+        {
+          "client_id": "1089055864452-8guuo0e672gqhpt5v93irukgjk6iual9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABFzjjPNWy6m87kXFEYO7E-oxRmspLGnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1089055864452-8guuo0e672gqhpt5v93irukgjk6iual9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
