@@ -51,3 +51,12 @@ app.*.map.json
 e2e_test/.venv/
 e2e_test/__pycache__/
 e2e_test/.pytest_cache/
+
+# Never in the repository, even if copied here by mistake
+keys/
+tools/
+review-fixes/
+refcheck/
+saffton/
+*service-account*.json
+*firebase-adminsdk*.json
