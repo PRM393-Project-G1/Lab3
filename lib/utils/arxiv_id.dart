@@ -1,6 +1,6 @@
-final _idPattern = RegExp(
-  r'^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?$',
-);
+// Current format only. An old ID such as `hep-th/9901001` has a slash, which
+// Firestore document IDs, routes and file names cannot hold.
+final _idPattern = RegExp(r'^\d{4}\.\d{4,5}(?:v\d+)?$');
 final _urlPattern = RegExp(
   r'arxiv\.org/(?:abs|pdf|html)/([^\s?#]+?)(?:\.pdf)?(?:[?#].*)?$',
   caseSensitive: false,

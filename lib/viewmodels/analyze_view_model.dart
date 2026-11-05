@@ -136,6 +136,9 @@ class AnalyzeViewModel extends BaseViewModel {
       // for it would keep a cached result from opening while offline.
       unawaited(_touch(uid, id));
       return AnalyzeTarget(id, ready: cached);
+    } on OfflineException {
+      _problem = AnalyzeProblem.unreachable;
+      return null;
     } on ApiException catch (error) {
       _problem = error.failure == ApiFailure.rejected
           ? AnalyzeProblem.failed

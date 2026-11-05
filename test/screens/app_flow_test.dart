@@ -31,15 +31,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes.dart';
 
-class _NoMessaging implements MessagingService {
-  @override
-  Stream<PushMessage> get foreground => const Stream.empty();
-  @override
-  Stream<PushMessage> get opened => const Stream.empty();
-  @override
-  Future<void> start(Future<void> Function(String token) onToken) async {}
-}
-
 /// For the running progress screen, whose spinner never settles.
 Future<void> settleSome(WidgetTester tester) async {
   await tester.pump();
@@ -136,12 +127,13 @@ void main() {
     tester.view.physicalSize = Size(width, height);
     addTearDown(tester.view.reset);
 
+    final messaging = FakeMessaging();
     final authVm = AuthViewModel(
       auth: auth,
       analytics: analytics,
       crashlytics: crashlytics,
       firestore: firestore,
-      messaging: _NoMessaging(),
+      messaging: messaging,
     )..start();
     final router = buildRouter(auth: authVm, settings: settings);
     addTearDown(router.dispose);
@@ -154,6 +146,7 @@ void main() {
           Provider<CrashlyticsService>.value(value: crashlytics),
           Provider<FirestoreService>.value(value: firestore),
           Provider<StorageService>.value(value: storage),
+          Provider<MessagingService>.value(value: messaging),
           ChangeNotifierProvider<RemoteConfigService>.value(
             value: remoteConfig,
           ),

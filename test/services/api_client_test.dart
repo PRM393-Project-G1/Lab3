@@ -54,6 +54,11 @@ void main() {
       expect(api.health(base), failsWith(ApiFailure.notRealtron));
     });
 
+    test('a bad certificate is unreachable', () {
+      final api = client((_) => throw const HandshakeException('bad cert'));
+      expect(api.health(base), failsWith(ApiFailure.unreachable));
+    });
+
     test('no route to the host is unreachable', () {
       final api = client((_) => throw const SocketException('no route'));
       expect(api.health(base), failsWith(ApiFailure.unreachable));
@@ -61,6 +66,15 @@ void main() {
   });
 
   group('commands', () {
+    test('a token that cannot refresh is unreachable', () {
+      final api = HttpApiClient(
+        settings: settings,
+        auth: FakeAuth()..tokenError = StateError('offline'),
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+      expect(api.cancelAnalysis('x'), failsWith(ApiFailure.unreachable));
+    });
+
     test('start sends the ID, the switch and the Firebase token', () async {
       late http.Request sent;
       final api = client((request) async {

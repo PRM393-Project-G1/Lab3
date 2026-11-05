@@ -73,6 +73,17 @@ void main() {
     });
   }
 
+  test('an unexpected error still ends the test', () async {
+    api.healthError = ArgumentError('Unsupported scheme');
+    final vm = build()..setUrl('ftp://100.1.2.3');
+
+    await vm.test();
+
+    expect(vm.status, ConnectStatus.failed);
+    expect(vm.failure, ApiFailure.unreachable);
+    expect(crashlytics.recorded, ['test_server']);
+  });
+
   test('saving does nothing before a successful test', () async {
     api.failure = ApiFailure.unreachable;
     final vm = build()..setUrl('100.1.2.3:8000');

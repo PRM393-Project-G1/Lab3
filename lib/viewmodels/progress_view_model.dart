@@ -22,13 +22,23 @@ class ProgressViewModel extends BaseViewModel {
     required this._api,
     required this._settings,
     required this.analysisId,
+    Duration missingAfter = const Duration(seconds: 30),
   }) {
+    // The document can appear just after the backend accepts the job, but
+    // not this late. It still recovers if the document does arrive.
+    _missing = Timer(missingAfter, () {
+      if (_state is! Loading) return;
+      _state = const Failure("Couldn't load");
+      notifyListeners();
+    });
     _sub = _analyses
         .watchAnalysis(analysisId)
         .listen(
           (analysis) {
-            // The document can appear just after the backend accepts the job.
-            if (analysis != null) _state = Data(analysis);
+            if (analysis != null) {
+              _missing.cancel();
+              _state = Data(analysis);
+            }
             notifyListeners();
           },
           onError: (Object _) {
@@ -52,6 +62,7 @@ class ProgressViewModel extends BaseViewModel {
   final ServerSettings _settings;
 
   late final StreamSubscription<Analysis?> _sub;
+  late final Timer _missing;
   ViewState<Analysis> _state = const Loading();
   bool _busy = false;
   bool _commandFailed = false;
@@ -130,6 +141,7 @@ class ProgressViewModel extends BaseViewModel {
 
   @override
   void dispose() {
+    _missing.cancel();
     _sub.cancel();
     super.dispose();
   }

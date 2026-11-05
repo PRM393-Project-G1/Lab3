@@ -45,6 +45,22 @@ void main() {
       expect(crashlytics.recorded, ['edit_history']);
     });
 
+    test('an error on one paper keeps the list', () async {
+      analyses.analyses[id] = doneAnalysis(id);
+      library.entries = [
+        LibraryEntry(arxivId: id, addedAt: DateTime(2026, 11, 5)),
+      ];
+      final vm = build();
+      await pumpEventQueue();
+
+      analyses.pushError(id);
+      await pumpEventQueue();
+
+      final entries = (vm.state as Data<List<LibraryEntry>>).value;
+      expect(entries.single.arxivId, id);
+      expect(entries.single.analysis, isNull);
+    });
+
     test('no history is the empty state', () async {
       final vm = build();
       await pumpEventQueue();
@@ -172,6 +188,7 @@ void main() {
         firestore: firestore,
         auth: FakeAuth(),
         analytics: analytics,
+        crashlytics: FakeCrashlytics(),
       );
       await pumpEventQueue();
       expect(vm.state, isA<Data<List<AppNotification>>>());
@@ -182,11 +199,38 @@ void main() {
       expect(analytics.events, ['notification_open:analysis_done']);
     });
 
+    test('a read mark that never finishes does not block opening', () async {
+      final vm = NotificationsViewModel(
+        firestore: FakeFirestore()..hangRead = true,
+        auth: FakeAuth(),
+        analytics: FakeAnalytics(),
+        crashlytics: FakeCrashlytics(),
+      );
+
+      expect(await vm.open(item), id);
+    });
+
+    test('a failed read mark is logged and still opens', () async {
+      final crashlytics = FakeCrashlytics();
+      final vm = NotificationsViewModel(
+        firestore: FakeFirestore()..failRead = true,
+        auth: FakeAuth(),
+        analytics: FakeAnalytics(),
+        crashlytics: crashlytics,
+      );
+
+      expect(await vm.open(item), id);
+      await pumpEventQueue();
+
+      expect(crashlytics.recorded, ['mark_read']);
+    });
+
     test('no notifications is the empty state', () async {
       final vm = NotificationsViewModel(
         firestore: FakeFirestore(),
         auth: FakeAuth(),
         analytics: FakeAnalytics(),
+        crashlytics: FakeCrashlytics(),
       );
       await pumpEventQueue();
       expect(vm.state, isA<Empty<List<AppNotification>>>());
@@ -343,6 +387,7 @@ void main() {
     late FakeLibrary library;
     late FakeAnalyses analyses;
     late FakeReportFiles files;
+    late FakeMessaging messaging;
 
     ProfileViewModel build() => ProfileViewModel(
       auth: auth,
@@ -351,6 +396,7 @@ void main() {
       analytics: analytics,
       crashlytics: crashlytics,
       files: files,
+      messaging: messaging,
       feed: LibraryFeed(library, analyses),
     );
 
@@ -363,6 +409,7 @@ void main() {
       library = FakeLibrary();
       analyses = FakeAnalyses();
       files = FakeReportFiles();
+      messaging = FakeMessaging();
     });
 
     test('shows the five Remote Config values', () {
@@ -399,6 +446,22 @@ void main() {
 
       expect(crashlytics.recorded, ['firebase_demo']);
       expect(crashlytics.crashed, isTrue);
+    });
+
+    test('sign out removes the device token', () async {
+      await build().signOut();
+
+      expect(messaging.deleted, isTrue);
+      expect(auth.signedOut, isTrue);
+    });
+
+    test('sign out still works when the token cannot be removed', () async {
+      messaging.failDelete = true;
+
+      await build().signOut();
+
+      expect(auth.signedOut, isTrue);
+      expect(crashlytics.recorded, ['delete_token']);
     });
 
     test('sign out logs it and clears local user data', () async {

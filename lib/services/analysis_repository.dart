@@ -4,6 +4,11 @@ import '../models/analysis.dart';
 import '../models/reference.dart';
 import '../models/topic.dart';
 
+/// The device has no network and no cached copy of the document.
+class OfflineException implements Exception {
+  const OfflineException();
+}
+
 /// Shared results under `analyses/{id}`. Only the backend writes these.
 abstract class AnalysisRepository {
   Future<Analysis?> getAnalysis(String id);
@@ -31,7 +36,14 @@ class FirestoreAnalysisRepository implements AnalysisRepository {
       : null;
 
   @override
-  Future<Analysis?> getAnalysis(String id) async => _map(await _doc(id).get());
+  Future<Analysis?> getAnalysis(String id) async {
+    try {
+      return _map(await _doc(id).get());
+    } on FirebaseException catch (error) {
+      if (error.code == 'unavailable') throw const OfflineException();
+      rethrow;
+    }
+  }
 
   @override
   Stream<Analysis?> watchAnalysis(String id) =>

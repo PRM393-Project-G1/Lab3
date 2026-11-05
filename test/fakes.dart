@@ -5,6 +5,7 @@ import 'package:realtron/firebase/analytics_service.dart';
 import 'package:realtron/firebase/auth_service.dart';
 import 'package:realtron/firebase/crashlytics_service.dart';
 import 'package:realtron/firebase/firestore_service.dart';
+import 'package:realtron/firebase/messaging_service.dart';
 import 'package:realtron/firebase/remote_config_service.dart';
 import 'package:realtron/firebase/storage_service.dart';
 import 'package:realtron/models/analysis.dart';
@@ -32,6 +33,7 @@ class FakeAuth implements AuthService {
 
   SignInResult result = SignInResult.success;
   bool signedOut = false;
+  Object? tokenError;
   final _changes = StreamController<AppUser?>.broadcast();
 
   @override
@@ -52,8 +54,40 @@ class FakeAuth implements AuthService {
     currentUser = null;
   }
 
+  /// Sends a sign-in or sign-out, as Firebase Auth would.
+  void change(AppUser? user) {
+    currentUser = user;
+    _changes.add(user);
+  }
+
   @override
-  Future<String?> idToken() async => 'token';
+  Future<String?> idToken() async {
+    if (tokenError != null) throw tokenError!;
+    return 'token';
+  }
+}
+
+class FakeMessaging implements MessagingService {
+  int starts = 0;
+  bool deleted = false;
+  bool failDelete = false;
+
+  @override
+  Stream<PushMessage> get foreground => const Stream.empty();
+  @override
+  Stream<PushMessage> get opened => const Stream.empty();
+
+  @override
+  Future<void> start(Future<void> Function(String token) onToken) async {
+    starts++;
+    await onToken('t1');
+  }
+
+  @override
+  Future<void> deleteToken() async {
+    if (failDelete) throw StateError('offline');
+    deleted = true;
+  }
 }
 
 class FakeAnalytics implements AnalyticsService {
@@ -133,6 +167,7 @@ class FakeRemoteConfig extends ChangeNotifier implements RemoteConfigService {
 
 class FakeApi implements ApiClient {
   ApiFailure? failure;
+  Object? healthError;
   int latency = 84;
   final started = <String>[];
   final cancelled = <String>[];
@@ -143,6 +178,7 @@ class FakeApi implements ApiClient {
 
   @override
   Future<int> health(String baseUrl) async {
+    if (healthError != null) throw healthError!;
     _maybeFail();
     return latency;
   }
@@ -166,6 +202,7 @@ class FakeAnalyses implements AnalysisRepository {
   final references = <String, List<Reference>>{};
   final _watchers = <String, StreamController<Analysis?>>{};
   bool fail = false;
+  Object? getError;
 
   void _maybeFail() {
     if (fail) throw StateError('offline');
@@ -177,8 +214,11 @@ class FakeAnalyses implements AnalysisRepository {
     _watchers[analysis.id]?.add(analysis);
   }
 
+  void pushError(String id) => _watchers[id]?.addError(StateError('denied'));
+
   @override
   Future<Analysis?> getAnalysis(String id) async {
+    if (getError != null) throw getError!;
     _maybeFail();
     return analyses[id];
   }
@@ -346,14 +386,24 @@ class FakeStorage implements StorageService {
 
 class FakeFirestore implements FirestoreService {
   final reports = <String>[];
+  final fcmTokens = <String>[];
+  bool hangRead = false;
+  bool failRead = false;
+  bool hangEnsureUser = false;
+  bool failEnsureUser = false;
   final readIds = <String>[];
   final _notifications = StreamController<List<AppNotification>>.broadcast();
   List<AppNotification> notifications = const [];
 
   @override
-  Future<void> ensureUser(AppUser user) async {}
+  Future<void> ensureUser(AppUser user) async {
+    if (failEnsureUser) throw StateError('offline');
+    if (hangEnsureUser) await Completer<void>().future;
+  }
+
   @override
-  Future<void> addFcmToken(String uid, String token) async {}
+  Future<void> addFcmToken(String uid, String token) async =>
+      fcmTokens.add('$uid:$token');
   @override
   Stream<List<AppNotification>> watchNotifications(String uid) {
     scheduleMicrotask(() => _notifications.add(notifications));
@@ -361,8 +411,12 @@ class FakeFirestore implements FirestoreService {
   }
 
   @override
-  Future<void> markNotificationRead(String uid, String id) async =>
-      readIds.add(id);
+  Future<void> markNotificationRead(String uid, String id) async {
+    if (failRead) throw StateError('offline');
+    readIds.add(id);
+    if (hangRead) await Completer<void>().future;
+  }
+
   @override
   Future<void> addReport({
     required String uid,

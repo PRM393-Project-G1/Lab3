@@ -18,7 +18,11 @@ abstract class MessagingService {
   /// Pushes the user tapped, from the background or a terminated app.
   Stream<PushMessage> get opened;
 
+  /// Registers this device for the signed-in user. Call it for every sign-in.
   Future<void> start(Future<void> Function(String token) onToken);
+
+  /// Stops pushes to this device, so the next user does not get them.
+  Future<void> deleteToken();
 }
 
 /// Runs in its own isolate. The system shows the notification itself.
@@ -36,6 +40,8 @@ class FirebaseMessagingService implements MessagingService {
   final FirebaseMessaging _messaging;
   final _foreground = StreamController<PushMessage>.broadcast();
   final _opened = StreamController<PushMessage>.broadcast();
+  Future<void> Function(String token)? _onToken;
+  bool _listening = false;
 
   PushMessage _map(RemoteMessage m) => PushMessage(
     title: m.notification?.title ?? 'Analysis done',
@@ -51,16 +57,26 @@ class FirebaseMessagingService implements MessagingService {
 
   @override
   Future<void> start(Future<void> Function(String token) onToken) async {
-    await _messaging.requestPermission();
+    _onToken = onToken;
+    // Listeners come first: getting a token can fail with no network.
+    if (!_listening) {
+      _listening = true;
+      // ignore: deprecated_member_use
+      _messaging.onTokenRefresh.listen((token) => _onToken?.call(token));
+      FirebaseMessaging.onMessage.listen((m) => _foreground.add(_map(m)));
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => _opened.add(_map(m)));
+      final initial = await _messaging.getInitialMessage();
+      if (initial != null) _opened.add(_map(initial));
+      await _messaging.requestPermission();
+    }
     // The backend sends through the Admin SDK with registration tokens.
     // ignore: deprecated_member_use
     final token = await _messaging.getToken();
     if (token != null) await onToken(token);
-    // ignore: deprecated_member_use
-    _messaging.onTokenRefresh.listen(onToken);
-    FirebaseMessaging.onMessage.listen((m) => _foreground.add(_map(m)));
-    FirebaseMessaging.onMessageOpenedApp.listen((m) => _opened.add(_map(m)));
-    final initial = await _messaging.getInitialMessage();
-    if (initial != null) _opened.add(_map(initial));
   }
+
+  @override
+  Future<void> deleteToken() =>
+      // ignore: deprecated_member_use
+      _messaging.deleteToken().timeout(const Duration(seconds: 5));
 }

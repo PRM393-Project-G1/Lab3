@@ -3,6 +3,7 @@ import 'package:realtron/models/analysis.dart';
 import 'package:realtron/services/api_client.dart';
 import 'package:realtron/services/server_settings.dart';
 import 'package:realtron/viewmodels/progress_view_model.dart';
+import 'package:realtron/viewmodels/view_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes.dart';
@@ -34,6 +35,26 @@ void main() {
   }
 
   List<ProgressStepState> states() => vm.steps.map((s) => s.state).toList();
+
+  test(
+    'a document that never appears becomes an error, then recovers',
+    () async {
+      final quiet = ProgressViewModel(
+        analyses: analyses,
+        api: api,
+        settings: ServerSettings(await SharedPreferences.getInstance()),
+        analysisId: id,
+        missingAfter: const Duration(milliseconds: 1),
+      );
+      addTearDown(quiet.dispose);
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(quiet.state, isA<Failure<Analysis>>());
+
+      await send(const Analysis(id: id, status: AnalysisStatus.processing));
+      expect(quiet.state, isA<Data<Analysis>>());
+    },
+  );
 
   test('has the five steps in order', () {
     expect(vm.steps.map((s) => s.label), [

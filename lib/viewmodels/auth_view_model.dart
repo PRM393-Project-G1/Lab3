@@ -29,7 +29,6 @@ class AuthViewModel extends BaseViewModel {
   AppUser? _user;
   bool _signingIn = false;
   SignInResult? _lastResult;
-  bool _messagingStarted = false;
 
   AppUser? get user => _user;
   bool get isSignedIn => _user != null;
@@ -59,22 +58,32 @@ class AuthViewModel extends BaseViewModel {
   void _onUser(AppUser? user) {
     _user = user;
     notifyListeners();
-    unawaited(_syncUser(user));
-  }
-
-  Future<void> _syncUser(AppUser? user) async {
-    try {
-      await _analytics.setUser(user?.uid);
-      await _crashlytics.setUser(user?.uid ?? '');
-      if (user == null) return;
-      await _firestore.ensureUser(user);
-      if (!_messagingStarted) {
-        _messagingStarted = true;
-        await _messaging.start((token) async {
+    unawaited(_report(_identify(user)));
+    if (user == null) return;
+    // Separate, because a Firestore write can wait for the network for as
+    // long as the phone is offline, and pushes must still arrive meanwhile.
+    final ensured = _firestore.ensureUser(user);
+    unawaited(_report(ensured));
+    unawaited(
+      _report(
+        _messaging.start((token) async {
+          // ensureUser only sets `role` on a document that does not exist yet.
+          await ensured;
           final uid = _user?.uid;
           if (uid != null) await _firestore.addFcmToken(uid, token);
-        });
-      }
+        }),
+      ),
+    );
+  }
+
+  Future<void> _identify(AppUser? user) async {
+    await _analytics.setUser(user?.uid);
+    await _crashlytics.setUser(user?.uid ?? '');
+  }
+
+  Future<void> _report(Future<void> work) async {
+    try {
+      await work;
     } catch (error, stack) {
       await _crashlytics.recordNonFatal(error, stack, reason: 'sync_user');
     }

@@ -75,7 +75,13 @@ class HttpApiClient implements ApiClient {
   Future<void> _post(String path, Map<String, dynamic> body) async {
     final base = _settings.serverUrl;
     if (base == null) throw const ApiException(ApiFailure.noServer);
-    final token = await _auth.idToken();
+    final String? token;
+    try {
+      token = await _auth.idToken();
+    } catch (_) {
+      // Refreshing an expired token needs the network too.
+      throw const ApiException(ApiFailure.unreachable);
+    }
     final response = await _guard(
       () => _client.post(
         Uri.parse('$base$path'),
@@ -101,6 +107,8 @@ class HttpApiClient implements ApiClient {
     } on TimeoutException {
       throw const ApiException(ApiFailure.timeout);
     } on SocketException {
+      throw const ApiException(ApiFailure.unreachable);
+    } on TlsException {
       throw const ApiException(ApiFailure.unreachable);
     } on http.ClientException {
       throw const ApiException(ApiFailure.unreachable);

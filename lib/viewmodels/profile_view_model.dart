@@ -3,6 +3,7 @@ import 'dart:async';
 import '../firebase/analytics_service.dart';
 import '../firebase/auth_service.dart';
 import '../firebase/crashlytics_service.dart';
+import '../firebase/messaging_service.dart';
 import '../firebase/remote_config_service.dart';
 import '../models/analysis.dart';
 import '../models/app_user.dart';
@@ -20,6 +21,7 @@ class ProfileViewModel extends BaseViewModel {
     required this._analytics,
     required this._crashlytics,
     required this._files,
+    required this._messaging,
     required LibraryFeed feed,
   }) : _auth = auth {
     _settings.addListener(notifyListeners);
@@ -39,6 +41,7 @@ class ProfileViewModel extends BaseViewModel {
   final AnalyticsService _analytics;
   final CrashlyticsService _crashlytics;
   final ReportFiles _files;
+  final MessagingService _messaging;
 
   StreamSubscription<List<LibraryEntry>>? _feedSub;
   List<LibraryEntry> _entries = const [];
@@ -76,6 +79,12 @@ class ProfileViewModel extends BaseViewModel {
 
   Future<void> signOut() async {
     await _analytics.logLogout();
+    try {
+      await _messaging.deleteToken();
+    } catch (error, stack) {
+      // With no network, signing out still has to work.
+      await _crashlytics.recordNonFatal(error, stack, reason: 'delete_token');
+    }
     await _auth.signOut();
     await _settings.clear();
     await _files.clear();

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:realtron/models/analysis.dart';
 import 'package:realtron/models/library_entry.dart';
+import 'package:realtron/services/analysis_repository.dart';
 import 'package:realtron/services/api_client.dart';
 import 'package:realtron/services/library_feed.dart';
 import 'package:realtron/services/server_settings.dart';
@@ -95,6 +96,17 @@ void main() {
 
     expect(target?.ready, isTrue);
     expect(crashlytics.recorded, ['touch_library']);
+  });
+
+  test('no network offers the server banner and logs nothing', () async {
+    analyses.getError = const OfflineException();
+    final vm = build()..setInput(id);
+
+    expect(await vm.submit(), isNull);
+
+    expect(vm.problem, AnalyzeProblem.unreachable);
+    expect(api.started, isEmpty);
+    expect(crashlytics.recorded, isEmpty);
   });
 
   test('a finished result opens directly, with no backend call', () async {

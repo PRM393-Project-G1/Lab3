@@ -34,10 +34,19 @@ class LibraryFeed {
         }
       }
       for (final id in ids) {
-        watchers[id] ??= _analyses.watchAnalysis(id).listen((analysis) {
-          latest[id] = analysis;
-          emit();
-        }, onError: out.addError);
+        watchers[id] ??= _analyses
+            .watchAnalysis(id)
+            .listen(
+              (analysis) {
+                latest[id] = analysis;
+                emit();
+              },
+              // The list still stands; this paper just shows no status.
+              onError: (Object _) {
+                latest.remove(id);
+                emit();
+              },
+            );
       }
       emit();
     }

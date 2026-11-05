@@ -77,6 +77,12 @@ class ConnectViewModel extends BaseViewModel {
       _failure = error.failure;
       _status = ConnectStatus.failed;
       await _crashlytics.setKey('server_reachable', false);
+    } catch (error, stack) {
+      // Such as a scheme the HTTP client refuses, like ftp://.
+      _failure = ApiFailure.unreachable;
+      _status = ConnectStatus.failed;
+      await _crashlytics.setKey('server_reachable', false);
+      await _crashlytics.recordNonFatal(error, stack, reason: 'test_server');
     }
     notifyListeners();
   }

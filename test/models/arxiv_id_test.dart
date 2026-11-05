@@ -26,6 +26,8 @@ void main() {
       '17.03762',
       '1706.0',
       'https://example.com/abs/1706.03762',
+      'hep-th/9901001',
+      'https://arxiv.org/abs/hep-th/9901001',
     ]) {
       test('rejects "$input"', () {
         expect(parseArxivId(input), isNull);

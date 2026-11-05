@@ -161,6 +161,7 @@ sequenceDiagram
 | `issues[]` | `type`, `message`, `cited`, `actual` | Bảng Cited / Actual, `Copy fix` |
 | `hallucination` | `explanation`, `closestMatchTitle`, `closestMatchUrl` | Dialog `Likely fabricated` |
 | Dữ liệu push FCM | `analysisId` trong `data` | Chạm push mở Overview |
+| `fcmTokens[]` | Bỏ qua và xoá token không còn hợp lệ | App xoá token của máy khi đăng xuất |
 
 Luật truy cập nằm ở `firebase/firestore.rules` và `firebase/storage.rules`. Người dùng chỉ đọc và ghi dữ liệu của mình, không tự đổi được `role`, không ghi được `analyses/**`. File PDF chỉ nhận `application/pdf` dưới 10 MB.
 
