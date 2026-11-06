@@ -64,7 +64,7 @@ class OverviewViewModel extends BaseViewModel {
         _analyses.getReferences(analysisId),
       ).wait;
       if (analysis == null) {
-        _state = const Failure("Couldn't load");
+        _state = const Failure.loadFailed();
         notifyListeners();
         return;
       }
@@ -77,14 +77,11 @@ class OverviewViewModel extends BaseViewModel {
         await _analytics.logViewAnalysis(
           analysisId,
           refCount: analysis.totalRefs,
-          weakTopicCount: switch (_state) {
-            Data(:final value) => value.weakTopics.length,
-            _ => 0,
-          },
+          weakTopicCount: _state.valueOrNull?.weakTopics.length ?? 0,
         );
       }
     } catch (error, stack) {
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
       notifyListeners();
       await _crashlytics.recordNonFatal(error, stack, reason: 'load_overview');
     }

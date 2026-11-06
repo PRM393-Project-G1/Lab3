@@ -67,10 +67,7 @@ class TopicMapViewModel extends BaseViewModel {
   int get weakPercent => (_remoteConfig.weakTopicThreshold * 100).round();
 
   List<TopicRow> get rows {
-    final tree = switch (_state) {
-      Data(:final value) => value,
-      _ => null,
-    };
+    final tree = _state.valueOrNull;
     if (tree == null) return const [];
     final rows = <TopicRow>[];
     void visit(TopicNode node) {
@@ -101,7 +98,7 @@ class TopicMapViewModel extends BaseViewModel {
       _references = references;
       _rebuild();
     } catch (_) {
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
       notifyListeners();
     }
   }

@@ -49,11 +49,11 @@ class HistoryViewModel extends BaseViewModel {
         .watch(uid)
         .listen(
           (entries) {
-            _state = entries.isEmpty ? const Empty() : Data(entries);
+            _state = listState(entries);
             notifyListeners();
           },
           onError: (Object error, StackTrace stack) {
-            _state = const Failure("Couldn't load");
+            _state = const Failure.loadFailed();
             _crashlytics.recordNonFatal(error, stack, reason: 'load_history');
             notifyListeners();
           },
@@ -67,10 +67,7 @@ class HistoryViewModel extends BaseViewModel {
 
   /// Search result grouped by time, newest first. Empty groups are left out.
   List<HistoryGroup> groups({DateTime? now}) {
-    final entries = switch (_state) {
-      Data(:final value) => value,
-      _ => const <LibraryEntry>[],
-    };
+    final entries = _state.valueOrNull ?? const <LibraryEntry>[];
     final query = _query.trim().toLowerCase();
     final matches = entries.where(
       (e) =>

@@ -38,11 +38,11 @@ class NotificationsViewModel extends BaseViewModel {
         .watchNotifications(uid)
         .listen(
           (items) {
-            _state = items.isEmpty ? const Empty() : Data(items);
+            _state = listState(items);
             notifyListeners();
           },
           onError: (Object _) {
-            _state = const Failure("Couldn't load");
+            _state = const Failure.loadFailed();
             notifyListeners();
           },
         );

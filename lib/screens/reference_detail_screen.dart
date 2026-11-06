@@ -24,7 +24,7 @@ class ReferenceDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<ReferenceDetailViewModel>();
     if (vm.takeFabricationPrompt()) {
-      final ref = (vm.state as Data<Reference>).value;
+      final ref = vm.state.valueOrNull!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) _showFabricationDialog(context, vm, ref);
       });

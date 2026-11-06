@@ -36,10 +36,7 @@ class ReferenceDetailViewModel extends BaseViewModel {
 
   /// The fabrication dialog opens by itself once per visit.
   bool takeFabricationPrompt() {
-    final ref = switch (_state) {
-      Data(:final value) => value,
-      _ => null,
-    };
+    final ref = _state.valueOrNull;
     if (_promptShown || ref?.status != RefStatus.hallucinated) return false;
     _promptShown = true;
     return true;
@@ -54,7 +51,7 @@ class ReferenceDetailViewModel extends BaseViewModel {
         _analyses.getTopics(analysisId),
       ).wait;
       if (ref == null) {
-        _state = const Failure("Couldn't load");
+        _state = const Failure.loadFailed();
         notifyListeners();
         return;
       }
@@ -66,7 +63,7 @@ class ReferenceDetailViewModel extends BaseViewModel {
         await _analytics.logViewReference(referenceId, ref.status.name);
       }
     } catch (_) {
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
       notifyListeners();
     }
   }

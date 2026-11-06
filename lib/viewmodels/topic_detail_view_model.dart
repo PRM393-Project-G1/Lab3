@@ -42,13 +42,10 @@ class TopicDetailViewModel extends BaseViewModel {
   /// Null means All.
   RefStatus? get filter => _filter;
 
-  List<Reference> get visibleReferences => switch (_state) {
-    Data(:final value) =>
-      value.references
-          .where((ref) => _filter == null || ref.status == _filter)
-          .toList(),
-    _ => const [],
-  };
+  List<Reference> get visibleReferences => [
+    for (final ref in _state.valueOrNull?.references ?? const <Reference>[])
+      if (_filter == null || ref.status == _filter) ref,
+  ];
 
   Future<void> load() async {
     _state = const Loading();
@@ -66,7 +63,7 @@ class TopicDetailViewModel extends BaseViewModel {
       );
       final node = tree.byId[topicId];
       if (node == null) {
-        _state = const Failure("Couldn't load");
+        _state = const Failure.loadFailed();
         notifyListeners();
         return;
       }
@@ -82,7 +79,7 @@ class TopicDetailViewModel extends BaseViewModel {
         await _analytics.logViewTopic(topicId, node.term, isWeak: node.isWeak);
       }
     } catch (_) {
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
       notifyListeners();
     }
   }

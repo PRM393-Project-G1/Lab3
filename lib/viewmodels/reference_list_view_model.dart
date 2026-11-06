@@ -63,10 +63,7 @@ class ReferenceListViewModel extends BaseViewModel {
   String get query => _query;
   String? get paperTitle => _analysis?.displayTitle;
 
-  List<Reference> get _all => switch (_state) {
-    Data(:final value) => value,
-    _ => const [],
-  };
+  List<Reference> get _all => _state.valueOrNull ?? const [];
 
   int get totalCount => _all.length;
 
@@ -105,7 +102,7 @@ class ReferenceListViewModel extends BaseViewModel {
       _analysis = analysis;
       _state = Data(sortBySeverity(references));
     } catch (_) {
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
     }
     notifyListeners();
   }

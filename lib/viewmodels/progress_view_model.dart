@@ -28,7 +28,7 @@ class ProgressViewModel extends BaseViewModel {
     // not this late. It still recovers if the document does arrive.
     _missing = Timer(missingAfter, () {
       if (_state is! Loading) return;
-      _state = const Failure("Couldn't load");
+      _state = const Failure.loadFailed();
       notifyListeners();
     });
     _sub = _analyses
@@ -42,7 +42,7 @@ class ProgressViewModel extends BaseViewModel {
             notifyListeners();
           },
           onError: (Object _) {
-            _state = const Failure("Couldn't load");
+            _state = const Failure.loadFailed();
             notifyListeners();
           },
         );
@@ -68,10 +68,7 @@ class ProgressViewModel extends BaseViewModel {
   bool _commandFailed = false;
 
   ViewState<Analysis> get state => _state;
-  Analysis? get analysis => switch (_state) {
-    Data(:final value) => value,
-    _ => null,
-  };
+  Analysis? get analysis => _state.valueOrNull;
 
   bool get busy => _busy;
 

@@ -105,11 +105,11 @@ class AnalyzeViewModel extends BaseViewModel {
         .watch(uid)
         .listen(
           (entries) {
-            _recent = entries.isEmpty ? const Empty() : Data(entries);
+            _recent = listState(entries);
             notifyListeners();
           },
           onError: (Object error, StackTrace stack) {
-            _recent = const Failure("Couldn't load");
+            _recent = const Failure.loadFailed();
             _crashlytics.recordNonFatal(error, stack, reason: 'load_recent');
             notifyListeners();
           },
