@@ -41,4 +41,4 @@ Project ID trong ảnh phải trùng với `google-services.json`.
 
 Spark không có bucket, nên app **tạm upload báo cáo lên Cloudinary** (thầy cho phép thay thế). Backend ký từng lần upload cho `reports/{uid}/`, lấy uid từ Firebase token, nên mỗi user chỉ ghi được vào thư mục của mình và secret không nằm trong app. Cách cài: mục "Upload báo cáo lên Cloudinary" trong [`backend/README.md`](../backend/README.md).
 
-`storage.rules` vẫn nằm trong repo. Khi project lên Blaze và có bucket: đưa luật lên, đổi provider trong `lib/main.dart` về `FirebaseStorageService()`, rồi build lại.
+`storage.rules` vẫn nằm trong repo. Khi project lên Blaze và có bucket: đưa luật lên, đổi provider trong `lib/app_dependencies.dart` về `FirebaseStorageService()`, rồi build lại.

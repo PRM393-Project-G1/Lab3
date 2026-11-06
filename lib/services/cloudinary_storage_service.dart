@@ -12,7 +12,7 @@ import 'api_client.dart';
 /// The backend signs each upload for `reports/{uid}/`, taking the uid from the
 /// Firebase token. So the secret stays on the server, and a user cannot write
 /// into another user's folder. Switch back to [FirebaseStorageService] in
-/// `main.dart` once the project has a bucket.
+/// `app_dependencies.dart` once the project has a bucket.
 class CloudinaryStorageService implements StorageService {
   CloudinaryStorageService({required this._api, http.Client? client})
     : _client = client ?? http.Client();

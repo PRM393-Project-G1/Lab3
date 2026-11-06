@@ -5,25 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_dependencies.dart';
 import 'app_router.dart';
 import 'app_routes.dart';
 import 'firebase/analytics_service.dart';
-import 'firebase/auth_service.dart';
-import 'firebase/crashlytics_service.dart';
-import 'firebase/firestore_service.dart';
 import 'firebase/messaging_service.dart';
-import 'firebase/remote_config_service.dart';
-import 'firebase/storage_service.dart';
-import 'services/analysis_repository.dart';
-import 'services/api_client.dart';
-import 'services/cloudinary_storage_service.dart';
-import 'services/device_actions.dart';
-import 'services/library_feed.dart';
-import 'services/library_repository.dart';
-import 'services/report_files.dart';
-import 'services/report_service.dart';
 import 'services/server_settings.dart';
 import 'services/share_intent_service.dart';
 import 'theme/app_theme.dart';
@@ -41,57 +28,7 @@ Future<void> main() async {
     return;
   }
 
-  final crashlytics = FirebaseCrashlyticsService()..installHandlers();
-  FirebaseMessagingService.registerBackgroundHandler();
-  final prefs = await SharedPreferences.getInstance();
-
-  final auth = FirebaseAuthService();
-  final analytics = FirebaseAnalyticsService();
-  final firestore = CloudFirestoreService();
-  final messaging = FirebaseMessagingService();
-  final settings = ServerSettings(prefs);
-  final remoteConfig = FirebaseRemoteConfigService();
-  unawaited(remoteConfig.init());
-  final analyses = FirestoreAnalysisRepository();
-  final library = FirestoreLibraryRepository();
-  final api = HttpApiClient(settings: settings, auth: auth);
-
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<AuthService>.value(value: auth),
-        Provider<AnalyticsService>.value(value: analytics),
-        Provider<CrashlyticsService>.value(value: crashlytics),
-        Provider<FirestoreService>.value(value: firestore),
-        Provider<MessagingService>.value(value: messaging),
-        // Cloudinary until the Firebase project has a Storage bucket; then
-        // FirebaseStorageService() again. See cloudinary_storage_service.dart.
-        Provider<StorageService>(
-          create: (_) => CloudinaryStorageService(api: api),
-        ),
-        ChangeNotifierProvider<RemoteConfigService>.value(value: remoteConfig),
-        ChangeNotifierProvider<ServerSettings>.value(value: settings),
-        Provider<ApiClient>.value(value: api),
-        Provider<AnalysisRepository>.value(value: analyses),
-        Provider<LibraryRepository>.value(value: library),
-        Provider<LibraryFeed>(create: (_) => LibraryFeed(library, analyses)),
-        Provider<ReportService>(create: (_) => PdfReportService()),
-        Provider<ReportFiles>(create: (_) => DeviceReportFiles()),
-        Provider<DeviceActions>(create: (_) => SystemDeviceActions()),
-        Provider<ShareIntentService>(create: (_) => SystemShareIntentService()),
-        ChangeNotifierProvider(
-          create: (_) => AuthViewModel(
-            auth: auth,
-            analytics: analytics,
-            crashlytics: crashlytics,
-            firestore: firestore,
-            messaging: messaging,
-          ),
-        ),
-      ],
-      child: const RealtronApp(),
-    ),
-  );
+  runApp(await provideDependencies(child: const RealtronApp()));
 }
 
 class RealtronApp extends StatefulWidget {
