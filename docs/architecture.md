@@ -7,23 +7,26 @@
 
 ```
 lib/
-├── main.dart        # Khởi tạo, khoá màn dọc, inject service, chạy app
-├── theme/           # Token, ThemeData, ThemeExtension (màu trạng thái, chữ mono)
-├── models/          # Dữ liệu thuần: RefStatus, StatusCounts, Analysis, Topic…
-├── utils/           # Hàm thuần không phụ thuộc UI: kiểm tra và chuẩn hoá arXiv ID, định dạng thời gian
-├── firebase/        # Bọc Firebase SDK: Auth, Firestore, Storage, Messaging, Analytics, Crashlytics, Remote Config
-├── services/        # Backend qua Tailscale, repository, tạo PDF, nhận link share
-├── viewmodels/      # Một ViewModel mỗi màn + ViewState; chứa toàn bộ logic nghiệp vụ
-├── screens/         # Dựng UI từ state của ViewModel; không có logic, không gọi SDK
-└── widgets/         # Component của design system, trạng thái truyền qua tham số
-test/                # Unit test ViewModel (service giả), widget test design system
-e2e_test/            # Test ARTEMIS (pytest)
-backend/             # Orchestrator FastAPI: chạy RefChecker, Saffron; ghi Firestore, gửi FCM
-firebase/            # storage.rules, firestore.rules, indexes, remote-config-defaults.json
-design/              # Persona, flow, DESIGN.md, nhật ký AI, ảnh Stitch
-handoff/             # flutter-handoff.md
-docs/                # Traceability, architecture, analytics, test plan, code review
-evidence/            # Ảnh Console, DebugView, Crashlytics, trace ARTEMIS
+├── main.dart              # Khởi tạo Flutter và Firebase, khoá màn dọc, chạy app
+├── app_dependencies.dart  # Composition root: tạo service một lần, inject qua Provider
+├── app_router.dart        # Route, chặn theo đăng nhập và server
+├── app_routes.dart        # Mọi đường dẫn điều hướng, dựng ở một chỗ
+├── theme/                 # Token, ThemeData, ThemeExtension (màu trạng thái, chữ mono)
+├── models/                # Dữ liệu thuần: RefStatus, StatusCounts, Analysis, Topic, WeakTopicRule…
+├── utils/                 # Hàm thuần không phụ thuộc UI: arXiv ID, địa chỉ server, định dạng thời gian
+├── firebase/              # Bọc Firebase SDK: Auth, Firestore, Storage, Messaging, Analytics, Crashlytics, Remote Config
+├── services/              # Backend qua Tailscale, repository, tạo PDF, nhận link share
+├── viewmodels/            # Một ViewModel mỗi màn + ViewState; chứa toàn bộ logic nghiệp vụ
+├── screens/               # Dựng UI từ state của ViewModel; không có logic, không gọi SDK
+└── widgets/               # Component của design system, trạng thái truyền qua tham số
+test/                      # Unit test ViewModel (service giả), widget test design system
+e2e_test/                  # Test ARTEMIS (pytest)
+backend/                   # Orchestrator FastAPI: chạy RefChecker, Saffron; ghi Firestore, gửi FCM
+firebase/                  # storage.rules, firestore.rules, indexes, remote-config-defaults.json
+design/                    # Persona, flow, DESIGN.md, nhật ký AI, ảnh Stitch
+handoff/                   # flutter-handoff.md
+docs/                      # Traceability, architecture, analytics, test plan, code review
+evidence/                  # Ảnh Console, DebugView, Crashlytics, trace ARTEMIS
 ```
 
 Khác cấu trúc gợi ý của đề ở hai điểm:
@@ -132,7 +135,7 @@ sequenceDiagram
 | go_router | Cần deep link từ push và chuyển màn theo auth state |
 | Kết quả đọc từ Firestore, không qua REST | Có realtime và offline cache; xem lại được khi backend tắt |
 | App chỉ gọi backend để ra lệnh | Backend chạy trên laptop, có thể tắt bất cứ lúc nào |
-| Cây chủ đề và ngưỡng "chủ đề yếu" nằm trong `models/topic_tree.dart` | Overview, Topics, Topic và báo cáo PDF dùng chung một cách tính; đổi được qua Remote Config mà không build lại |
+| Cây chủ đề nằm trong `models/topic_tree.dart`, quy tắc "chủ đề yếu" trong `models/weak_topic_rule.dart` | Overview, Topics, Topic và báo cáo PDF dùng chung một cách tính; đổi được qua Remote Config mà không build lại |
 | Số đếm của chủ đề cha tính lại từ `refIds` của cả nhánh | Một reference nằm trong hai chủ đề con chỉ được đếm một lần |
 | Chủ đề yếu: (Hallucinated + Error) / tổng ≥ `weak_topic_threshold` và tổng ≥ `weak_topic_min_refs` | Warning không tính, vì chỉ là khác biệt nhỏ về metadata |
 | Push khi app đang mở hiện bằng snackbar | Không cần thêm thư viện local notification |
@@ -191,3 +194,21 @@ App chỉ gọi backend để ra lệnh. Mọi lệnh `POST` gửi `Authorizatio
 | `max_recent_checks` | `10` | Số thẻ ở mục Recent |
 | `enable_report_export` | `true` | Ẩn hoặc hiện nút `Report` ở Overview |
 | `enable_cloud_upload` | `false` | Bật thì upload PDF lên Cloudinary (gói Spark không có Cloud Storage). Tắt thì chỉ lưu trên máy |
+
+## 10. Design pattern và nguyên tắc
+
+| Pattern / nguyên tắc | Ở đâu | Vì sao |
+|---|---|---|
+| MVVM + Observer | `viewmodels/` kế thừa `BaseViewModel` (`ChangeNotifier`); screen `watch` ViewModel | UI chỉ dựng lại từ state; logic test được mà không cần widget |
+| Repository | `AnalysisRepository`, `LibraryRepository` | ViewModel không biết dữ liệu đến từ Firestore |
+| Adapter | Các lớp `Firebase…Service`, `HttpApiClient`, `CloudinaryStorageService`, `SystemDeviceActions` | Bọc SDK sau interface của app; đổi Firebase Storage sang Cloudinary chỉ sửa một provider |
+| Dependency Injection, Composition Root | `app_dependencies.dart` | Chỉ một chỗ gọi tên lớp cụ thể; test truyền service giả qua Provider |
+| Facade | `AnalysisRepository.getResults` trả về `AnalysisResults` | Một lời gọi đọc song song bài báo, chủ đề và reference cho Overview, Topics, Export |
+| Specification | `WeakTopicRule.isSatisfiedBy` | Overview, Topics, Topic và PDF hỏi cùng một quy tắc "chủ đề yếu" lấy từ Remote Config |
+| Sealed state | `ViewState<T>`: `Loading`, `Empty`, `Failure`, `Data` | `switch` trong screen buộc phải xử lý đủ mọi trạng thái |
+| Một nguồn sự thật | `AppRoutes`, `FirestorePaths`, `RemoteConfigKeys`, `backend/orchestrator/contract.py` | Đường dẫn, tên collection, khoá Remote Config và giá trị trạng thái chỉ viết một lần |
+| Single Responsibility | `utils/server_url.dart`, các bước nhỏ của `ExportViewModel`, `main.dart` tách khỏi `app_dependencies.dart` | Mỗi hàm, mỗi file làm một việc |
+| Open/Closed | Extension trên `AnalysisRepository` và `RemoteConfigService` | Thêm hành vi mà không sửa interface, nên không phải sửa mọi implementation và service giả |
+| Interface Segregation | `ProgressStore` (job) và `AnalysisStore` (API) trong `backend/orchestrator/ports.py` | Mỗi bên chỉ phụ thuộc phần nó dùng |
+| Dependency Inversion | Interface trong `firebase/`, `services/`; protocol trong `backend/orchestrator/ports.py` | Logic chính phụ thuộc abstraction; Firebase, RefChecker và Saffron nằm phía sau |
+| Tell, don't ask | `RefStatus.parse`, `isFlagged`; `AnalysisStatus.isRunning`, `isStopped` | Model tự trả lời về trạng thái của nó; screen và ViewModel không so sánh enum |
