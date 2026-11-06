@@ -71,8 +71,7 @@ class ExportViewModel extends BaseViewModel {
       final tree = TopicTree.build(
         topics: topics,
         references: references,
-        weakThreshold: _remoteConfig.weakTopicThreshold,
-        weakMinRefs: _remoteConfig.weakTopicMinRefs,
+        weakRule: _remoteConfig.weakTopicRule,
       );
       final bytes = await _report.buildReport(
         analysis: analysis,

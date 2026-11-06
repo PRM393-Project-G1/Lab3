@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:realtron/models/ref_status.dart';
 import 'package:realtron/models/topic.dart';
 import 'package:realtron/models/topic_tree.dart';
+import 'package:realtron/models/weak_topic_rule.dart';
 
 import '../fakes.dart';
 
@@ -21,8 +22,7 @@ void main() {
   }) => TopicTree.build(
     topics: topics,
     references: references,
-    weakThreshold: threshold,
-    weakMinRefs: minRefs,
+    weakRule: WeakTopicRule(threshold: threshold, minRefs: minRefs),
   );
 
   test('links children to parents and keeps orphans as roots', () {
@@ -114,8 +114,7 @@ void main() {
         ),
       ],
       references: const [],
-      weakThreshold: 0.5,
-      weakMinRefs: 3,
+      weakRule: const WeakTopicRule(threshold: 0.5, minRefs: 3),
     );
 
     expect(tree.byId['t']!.counts.total, 3);

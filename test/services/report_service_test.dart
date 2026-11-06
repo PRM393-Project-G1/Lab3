@@ -5,6 +5,7 @@ import 'package:realtron/models/analysis.dart';
 import 'package:realtron/models/ref_status.dart';
 import 'package:realtron/models/topic.dart';
 import 'package:realtron/models/topic_tree.dart';
+import 'package:realtron/models/weak_topic_rule.dart';
 import 'package:realtron/services/report_service.dart';
 
 import '../fakes.dart';
@@ -21,8 +22,7 @@ void main() {
         Topic(id: 't', term: 'Chủ đề 主题', refIds: ['a', 'b', 'c']),
       ],
       references: references,
-      weakThreshold: 0.5,
-      weakMinRefs: 3,
+      weakRule: const WeakTopicRule(threshold: 0.5, minRefs: 3),
     );
 
     final bytes = await PdfReportService().buildReport(

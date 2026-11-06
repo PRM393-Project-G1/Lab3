@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/weak_topic_rule.dart';
+
 /// Values changed from the Firebase Console without a new build.
 abstract class RemoteConfigService extends ChangeNotifier {
   double get weakTopicThreshold;
@@ -12,6 +14,14 @@ abstract class RemoteConfigService extends ChangeNotifier {
 
   /// Off on the Spark plan, which has no Cloud Storage bucket.
   bool get enableCloudUpload;
+}
+
+extension WeakTopicRuleConfig on RemoteConfigService {
+  /// The weak-topic rule as currently set in the Firebase Console.
+  WeakTopicRule get weakTopicRule => WeakTopicRule(
+    threshold: weakTopicThreshold,
+    minRefs: weakTopicMinRefs,
+  );
 }
 
 class FirebaseRemoteConfigService extends RemoteConfigService {

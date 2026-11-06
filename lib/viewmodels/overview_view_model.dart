@@ -100,8 +100,7 @@ class OverviewViewModel extends BaseViewModel {
         TopicTree.build(
           topics: _topics,
           references: _references,
-          weakThreshold: _remoteConfig.weakTopicThreshold,
-          weakMinRefs: _remoteConfig.weakTopicMinRefs,
+          weakRule: _remoteConfig.weakTopicRule,
         ),
       ),
     );

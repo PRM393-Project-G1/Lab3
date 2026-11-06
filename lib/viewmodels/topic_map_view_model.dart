@@ -56,7 +56,7 @@ class TopicMapViewModel extends BaseViewModel {
   );
 
   /// Whole percent used by the footer rule, from Remote Config.
-  int get weakPercent => (_remoteConfig.weakTopicThreshold * 100).round();
+  int get weakPercent => _remoteConfig.weakTopicRule.percent;
 
   List<TopicRow> get rows {
     final tree = _state.valueOrNull;
@@ -118,8 +118,7 @@ class TopicMapViewModel extends BaseViewModel {
             TopicTree.build(
               topics: _topics,
               references: _references,
-              weakThreshold: _remoteConfig.weakTopicThreshold,
-              weakMinRefs: _remoteConfig.weakTopicMinRefs,
+              weakRule: _remoteConfig.weakTopicRule,
             ),
           );
     notifyListeners();

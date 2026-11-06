@@ -58,8 +58,7 @@ class TopicDetailViewModel extends BaseViewModel {
       final tree = TopicTree.build(
         topics: topics,
         references: references,
-        weakThreshold: _remoteConfig.weakTopicThreshold,
-        weakMinRefs: _remoteConfig.weakTopicMinRefs,
+        weakRule: _remoteConfig.weakTopicRule,
       );
       final node = tree.byId[topicId];
       if (node == null) {

@@ -1,6 +1,7 @@
 import 'ref_status.dart';
 import 'reference.dart';
 import 'topic.dart';
+import 'weak_topic_rule.dart';
 
 /// A topic with its place in the tree and the totals of its whole subtree.
 class TopicNode {
@@ -33,8 +34,7 @@ class TopicTree {
   factory TopicTree.build({
     required List<Topic> topics,
     required List<Reference> references,
-    required double weakThreshold,
-    required int weakMinRefs,
+    required WeakTopicRule weakRule,
   }) {
     final byId = {for (final topic in topics) topic.id: TopicNode(topic)};
     final roots = <TopicNode>[];
@@ -57,7 +57,7 @@ class TopicTree {
         node.refIds.addAll(child.refIds);
       }
       node.counts = _count(node, statuses);
-      node.isWeak = _isWeak(node.counts, weakThreshold, weakMinRefs);
+      node.isWeak = weakRule.isSatisfiedBy(node.counts);
       if (node.isWeak) weak.add(node);
       node.children.sort(_byIssuesThenSize);
     }
@@ -81,9 +81,6 @@ class TopicTree {
       node.refIds.map((id) => statuses[id]).nonNulls,
     );
   }
-
-  static bool _isWeak(StatusCounts counts, double threshold, int minRefs) =>
-      counts.total >= minRefs && counts.issues / counts.total >= threshold;
 
   static int _byIssuesThenSize(TopicNode a, TopicNode b) {
     final byIssues = b.counts.issues.compareTo(a.counts.issues);
