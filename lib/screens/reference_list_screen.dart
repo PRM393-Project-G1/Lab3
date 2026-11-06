@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/reference_list_view_model.dart';
@@ -71,9 +72,8 @@ class ReferenceListScreen extends StatelessWidget {
                   title: ref.title,
                   byline: ref.byline,
                   issue: ref.firstIssue,
-                  onTap: () => context.push(
-                    '/analyses/${vm.analysisId}/references/${ref.id}',
-                  ),
+                  onTap: () =>
+                      context.push(AppRoutes.reference(vm.analysisId, ref.id)),
                 ),
               ),
           ],

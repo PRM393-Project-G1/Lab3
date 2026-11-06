@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'app_routes.dart';
 import 'screens/analyze_screen.dart';
 import 'screens/connect_screen.dart';
 import 'screens/history_screen.dart';
@@ -36,9 +37,11 @@ String? gateRedirect({
   required bool hasServer,
   required String path,
 }) {
-  if (!signedIn) return path == '/sign-in' ? null : '/sign-in';
-  if (!hasServer) return path == '/connect' ? null : '/connect';
-  if (path == '/sign-in' || path == '/connect') return '/analyze';
+  if (!signedIn) return path == AppRoutes.signIn ? null : AppRoutes.signIn;
+  if (!hasServer) return path == AppRoutes.connect ? null : AppRoutes.connect;
+  if (path == AppRoutes.signIn || path == AppRoutes.connect) {
+    return AppRoutes.analyze;
+  }
   return null;
 }
 
@@ -61,7 +64,7 @@ GoRouter buildRouter({
 
   return GoRouter(
     navigatorKey: rootKey,
-    initialLocation: '/analyze',
+    initialLocation: AppRoutes.analyze,
     refreshListenable: Listenable.merge([auth, settings]),
     redirect: (_, state) => gateRedirect(
       signedIn: auth.isSignedIn,
@@ -69,15 +72,15 @@ GoRouter buildRouter({
       path: state.matchedLocation,
     ),
     routes: [
-      GoRoute(path: '/sign-in', builder: (_, _) => const SignInScreen()),
-      GoRoute(path: '/connect', builder: (_, _) => connect()),
+      GoRoute(path: AppRoutes.signIn, builder: (_, _) => const SignInScreen()),
+      GoRoute(path: AppRoutes.connect, builder: (_, _) => connect()),
       GoRoute(
-        path: '/profile/server',
+        path: AppRoutes.serverSettings,
         parentNavigatorKey: rootKey,
         builder: (_, _) => connect(fromProfile: true),
       ),
       GoRoute(
-        path: '/analyses/:id/progress',
+        path: AppRoutes.progress(':id'),
         parentNavigatorKey: rootKey,
         builder: (_, state) => ChangeNotifierProvider(
           create: (c) => ProgressViewModel(
@@ -95,7 +98,7 @@ GoRouter buildRouter({
             HomeShell(location: state.uri.path, child: child),
         routes: [
           GoRoute(
-            path: '/analyze',
+            path: AppRoutes.analyze,
             builder: (_, state) {
               final shared = state.uri.queryParameters['shared'];
               return ChangeNotifierProvider(
@@ -119,7 +122,7 @@ GoRouter buildRouter({
             },
           ),
           GoRoute(
-            path: '/history',
+            path: AppRoutes.history,
             builder: (_, _) => ChangeNotifierProvider(
               create: (c) => HistoryViewModel(
                 library: c.read(),
@@ -131,7 +134,7 @@ GoRouter buildRouter({
             ),
           ),
           GoRoute(
-            path: '/profile',
+            path: AppRoutes.profile,
             builder: (_, _) => ChangeNotifierProvider(
               create: (c) => ProfileViewModel(
                 auth: c.read(),
@@ -147,7 +150,7 @@ GoRouter buildRouter({
             ),
           ),
           GoRoute(
-            path: '/notifications',
+            path: AppRoutes.notifications,
             builder: (_, _) => ChangeNotifierProvider(
               create: (c) => NotificationsViewModel(
                 firestore: c.read(),
@@ -159,7 +162,7 @@ GoRouter buildRouter({
             ),
           ),
           GoRoute(
-            path: '/analyses/:id',
+            path: AppRoutes.overview(':id'),
             builder: (_, state) => ChangeNotifierProvider(
               create: (c) => OverviewViewModel(
                 analyses: c.read(),

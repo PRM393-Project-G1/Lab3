@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../models/ref_status.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
@@ -22,7 +23,7 @@ class OverviewScreen extends StatelessWidget {
 
   /// Opened from a push there is no history, so Back leads to History.
   void _back(BuildContext context) {
-    context.canPop() ? context.pop() : context.go('/history');
+    context.canPop() ? context.pop() : context.go(AppRoutes.history);
   }
 
   @override
@@ -32,7 +33,7 @@ class OverviewScreen extends StatelessWidget {
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go('/history');
+        if (!didPop) context.go(AppRoutes.history);
       },
       child: Scaffold(
         appBar: AppTopBar(
@@ -63,7 +64,7 @@ class _Content extends StatelessWidget {
   final OverviewData data;
 
   void _review(BuildContext context, RefStatus status) {
-    context.push('/analyses/$id/references?filter=${status.name}');
+    context.push(AppRoutes.references(id, filter: status.name));
   }
 
   @override
@@ -131,14 +132,14 @@ class _Content extends StatelessWidget {
                   name: node.term,
                   counts: node.counts,
                   isWeak: true,
-                  onTap: () => context.push('/analyses/$id/topics/${node.id}'),
+                  onTap: () => context.push(AppRoutes.topic(id, node.id)),
                 ),
               const SizedBox(height: AppSpacing.sm),
               AppButton(
                 'Explore',
                 variant: AppButtonVariant.secondary,
                 expand: true,
-                onPressed: () => context.push('/analyses/$id/topics'),
+                onPressed: () => context.push(AppRoutes.topics(id)),
               ),
             ],
           ),

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_router.dart';
+import 'app_routes.dart';
 import 'firebase/analytics_service.dart';
 import 'firebase/auth_service.dart';
 import 'firebase/crashlytics_service.dart';
@@ -139,13 +140,12 @@ class _RealtronAppState extends State<RealtronApp> {
 
   void _openPush(PushMessage push) {
     context.read<AnalyticsService>().logNotificationOpen('analysis_done');
-    if (push.analysisId != null) _router.go('/analyses/${push.analysisId}');
+    final id = push.analysisId;
+    if (id != null) _router.go(AppRoutes.overview(id));
   }
 
   void _openShared(String text) {
-    _router.go(
-      Uri(path: '/analyze', queryParameters: {'shared': text}).toString(),
-    );
+    _router.go(AppRoutes.analyzeShared(text));
     context.read<ShareIntentService>().clear();
   }
 

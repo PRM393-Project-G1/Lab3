@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/analyze_view_model.dart';
@@ -42,11 +43,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   Future<void> _submit(AnalyzeViewModel vm) async {
     final target = await vm.submit();
     if (target == null || !mounted) return;
-    context.push(
-      target.ready
-          ? '/analyses/${target.arxivId}'
-          : '/analyses/${target.arxivId}/progress',
-    );
+    context.push(AppRoutes.analysis(target.arxivId, done: target.ready));
   }
 
   @override
@@ -59,7 +56,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           IconButton(
             tooltip: 'Notifications',
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
+            onPressed: () => context.push(AppRoutes.notifications),
           ),
         ],
       ),
@@ -123,7 +120,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 AppButton(
                   'Change server',
                   variant: AppButtonVariant.text,
-                  onPressed: () => context.push('/profile/server'),
+                  onPressed: () => context.push(AppRoutes.serverSettings),
                 ),
               ],
             ),
@@ -145,7 +142,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           SectionLabel(
             'Recent',
             trailing: TextButton(
-              onPressed: () => context.go('/history'),
+              onPressed: () => context.go(AppRoutes.history),
               child: const Text('See all'),
             ),
           ),

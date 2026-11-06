@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../models/library_entry.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/history_view_model.dart';
@@ -29,7 +30,7 @@ class HistoryScreen extends StatelessWidget {
           icon: Icons.history_rounded,
           title: 'No checks yet',
           actionLabel: 'Analyze a paper',
-          onAction: () => context.go('/analyze'),
+          onAction: () => context.go(AppRoutes.analyze),
         ),
         Data() => _Content(vm: vm),
       },

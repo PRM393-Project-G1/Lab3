@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../models/ref_status.dart';
 import '../models/reference.dart';
 import '../theme/app_theme_extensions.dart';
@@ -168,9 +169,8 @@ class _Content extends StatelessWidget {
               for (final topic in vm.topics)
                 ActionChip(
                   label: Text(topic.term),
-                  onPressed: () => context.push(
-                    '/analyses/${vm.analysisId}/topics/${topic.id}',
-                  ),
+                  onPressed: () =>
+                      context.push(AppRoutes.topic(vm.analysisId, topic.id)),
                 ),
             ],
           ),

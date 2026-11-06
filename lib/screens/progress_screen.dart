@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/progress_view_model.dart';
@@ -17,7 +18,7 @@ class ProgressScreen extends StatelessWidget {
   const ProgressScreen({super.key});
 
   void _leave(BuildContext context) {
-    context.canPop() ? context.pop() : context.go('/analyze');
+    context.canPop() ? context.pop() : context.go(AppRoutes.analyze);
   }
 
   Future<void> _stop(BuildContext context, ProgressViewModel vm) async {
@@ -81,7 +82,7 @@ class ProgressScreen extends StatelessWidget {
                   AppButton(
                     'Edit',
                     variant: AppButtonVariant.text,
-                    onPressed: () => context.go('/analyze'),
+                    onPressed: () => context.go(AppRoutes.analyze),
                   ),
                 ],
               ),
@@ -116,7 +117,7 @@ class ProgressScreen extends StatelessWidget {
                 'View results',
                 expand: true,
                 onPressed: () =>
-                    context.pushReplacement('/analyses/${vm.analysisId}'),
+                    context.pushReplacement(AppRoutes.overview(vm.analysisId)),
               )
             else if (!vm.isFailed) ...[
               AppButton(

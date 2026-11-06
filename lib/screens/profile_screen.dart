@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/profile_view_model.dart';
@@ -91,7 +92,7 @@ class ProfileScreen extends StatelessWidget {
                 AppButton(
                   'Change',
                   variant: AppButtonVariant.text,
-                  onPressed: () => context.push('/profile/server'),
+                  onPressed: () => context.push(AppRoutes.serverSettings),
                 ),
               ],
             ),
@@ -104,7 +105,7 @@ class ProfileScreen extends StatelessWidget {
                 AppButton(
                   'Notifications',
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => context.push('/notifications'),
+                  onPressed: () => context.push(AppRoutes.notifications),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(

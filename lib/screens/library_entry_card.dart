@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../app_routes.dart';
 import '../models/library_entry.dart';
 import '../utils/time_format.dart';
 import '../widgets/history_card.dart';
@@ -42,9 +43,10 @@ class LibraryEntryCard extends StatelessWidget {
     onTap: () {
       onOpen?.call();
       context.push(
-        _state == HistoryCardState.done
-            ? '/analyses/${entry.arxivId}'
-            : '/analyses/${entry.arxivId}/progress',
+        AppRoutes.analysis(
+          entry.arxivId,
+          done: _state == HistoryCardState.done,
+        ),
       );
     },
   );

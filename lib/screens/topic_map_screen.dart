@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_theme_extensions.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/reference_list_view_model.dart';
@@ -77,7 +78,7 @@ class _Tree extends StatelessWidget {
             isWeak: row.node.isWeak,
             expanded: row.expanded,
             onToggle: () => vm.toggle(row.node.id),
-            onTap: () => context.push('/analyses/$id/topics/${row.node.id}'),
+            onTap: () => context.push(AppRoutes.topic(id, row.node.id)),
           ),
         if (vm.unclassifiedCount > 0 && !vm.weakOnly)
           TopicTreeNode(
@@ -85,7 +86,10 @@ class _Tree extends StatelessWidget {
             counts: vm.unclassifiedCounts,
             note: 'No readable text',
             onTap: () => context.push(
-              '/analyses/$id/references?filter=${ReferenceFilter.unclassified.key}',
+              AppRoutes.references(
+                id,
+                filter: ReferenceFilter.unclassified.key,
+              ),
             ),
           ),
         const SizedBox(height: AppSpacing.md),

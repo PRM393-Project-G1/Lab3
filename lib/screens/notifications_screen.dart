@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../theme/app_tokens.dart';
 import '../utils/time_format.dart';
 import '../viewmodels/notifications_view_model.dart';
@@ -40,7 +41,7 @@ class NotificationsScreen extends StatelessWidget {
               onTap: () async {
                 final analysisId = await vm.open(item);
                 if (analysisId != null && context.mounted) {
-                  context.push('/analyses/$analysisId');
+                  context.push(AppRoutes.overview(analysisId));
                 }
               },
             );

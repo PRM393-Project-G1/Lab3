@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app_routes.dart';
 import '../services/api_client.dart';
 import '../theme/app_tokens.dart';
 import '../viewmodels/connect_view_model.dart';
@@ -39,7 +40,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   Future<void> _save(ConnectViewModel vm) async {
     await vm.save();
     if (!mounted) return;
-    widget.fromProfile ? context.pop() : context.go('/analyze');
+    widget.fromProfile ? context.pop() : context.go(AppRoutes.analyze);
   }
 
   @override
