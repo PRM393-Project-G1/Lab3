@@ -17,6 +17,7 @@ import 'firebase/remote_config_service.dart';
 import 'firebase/storage_service.dart';
 import 'services/analysis_repository.dart';
 import 'services/api_client.dart';
+import 'services/cloudinary_storage_service.dart';
 import 'services/device_actions.dart';
 import 'services/library_feed.dart';
 import 'services/library_repository.dart';
@@ -52,6 +53,7 @@ Future<void> main() async {
   unawaited(remoteConfig.init());
   final analyses = FirestoreAnalysisRepository();
   final library = FirestoreLibraryRepository();
+  final api = HttpApiClient(settings: settings, auth: auth);
 
   runApp(
     MultiProvider(
@@ -61,12 +63,14 @@ Future<void> main() async {
         Provider<CrashlyticsService>.value(value: crashlytics),
         Provider<FirestoreService>.value(value: firestore),
         Provider<MessagingService>.value(value: messaging),
-        Provider<StorageService>(create: (_) => FirebaseStorageService()),
+        // Cloudinary until the Firebase project has a Storage bucket; then
+        // FirebaseStorageService() again. See cloudinary_storage_service.dart.
+        Provider<StorageService>(
+          create: (_) => CloudinaryStorageService(api: api),
+        ),
         ChangeNotifierProvider<RemoteConfigService>.value(value: remoteConfig),
         ChangeNotifierProvider<ServerSettings>.value(value: settings),
-        Provider<ApiClient>(
-          create: (_) => HttpApiClient(settings: settings, auth: auth),
-        ),
+        Provider<ApiClient>.value(value: api),
         Provider<AnalysisRepository>.value(value: analyses),
         Provider<LibraryRepository>.value(value: library),
         Provider<LibraryFeed>(create: (_) => LibraryFeed(library, analyses)),

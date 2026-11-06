@@ -118,4 +118,47 @@ void main() {
       expect(api.cancelAnalysis('1'), failsWith(ApiFailure.noServer));
     });
   });
+
+  group('upload signature', () {
+    test('sends the file name with the token and reads the ticket', () async {
+      late http.Request sent;
+      final api = client((request) async {
+        sent = request;
+        return http.Response(
+          jsonEncode({
+            'uploadUrl': 'https://api.cloudinary.com/v1_1/demo/raw/upload',
+            'fields': {
+              'api_key': 'key-123',
+              'public_id': 'reports/user-1/realtron_1706.03762.pdf',
+              'timestamp': 1700000000,
+              'signature': 'abc',
+            },
+          }),
+          200,
+        );
+      });
+
+      final ticket = await api.signUpload('realtron_1706.03762.pdf');
+
+      expect(sent.url.toString(), '$base/api/uploads/signature');
+      expect(sent.headers['Authorization'], 'Bearer token');
+      expect(jsonDecode(sent.body), {'fileName': 'realtron_1706.03762.pdf'});
+      expect(
+        ticket.uploadUrl,
+        'https://api.cloudinary.com/v1_1/demo/raw/upload',
+      );
+      expect(ticket.fields['timestamp'], '1700000000');
+      expect(ticket.fields['signature'], 'abc');
+    });
+
+    test('a server without uploads set up is rejected', () {
+      final api = client((_) async => http.Response('off', 503));
+      expect(api.signUpload('a.pdf'), failsWith(ApiFailure.rejected));
+    });
+
+    test('an answer of another shape is not Realtron', () {
+      final api = client((_) async => http.Response('{"uploadUrl": 1}', 200));
+      expect(api.signUpload('a.pdf'), failsWith(ApiFailure.notRealtron));
+    });
+  });
 }

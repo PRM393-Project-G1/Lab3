@@ -125,7 +125,7 @@ class FakeAnalytics implements AnalyticsService {
       events.add('export_report');
   @override
   Future<void> logNotificationOpen(String type) async =>
-      events.add('notification_open:$type');
+      events.add('open_notification:$type');
 }
 
 class FakeCrashlytics implements CrashlyticsService {
@@ -193,6 +193,20 @@ class FakeApi implements ApiClient {
   Future<void> cancelAnalysis(String arxivId) async {
     _maybeFail();
     cancelled.add(arxivId);
+  }
+
+  @override
+  Future<UploadTicket> signUpload(String fileName) async {
+    _maybeFail();
+    return UploadTicket(
+      uploadUrl: 'https://upload.test/raw/upload',
+      fields: {
+        'api_key': 'key-123',
+        'public_id': 'reports/user-1/$fileName',
+        'timestamp': '1700000000',
+        'signature': 'signed',
+      },
+    );
   }
 }
 

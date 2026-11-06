@@ -1,6 +1,6 @@
 # Cấu hình Firebase
 
-Code app đã sẵn sàng. Nhóm dùng gói **Spark**, nên **không bật Cloud Storage**: gói này không có bucket. App lưu PDF trên máy (`enable_cloud_upload = false`).
+Code app đã sẵn sàng. Nhóm dùng gói **Spark**, nên **không bật Cloud Storage**: gói này không có bucket. App luôn lưu PDF trên máy; bật `enable_cloud_upload` thì upload thêm lên **Cloudinary** (mục Cloud Storage bên dưới).
 
 Làm đúng thứ tự: `google-services.json` chỉ có Web client ID khi đã bật Google Sign-In, thiếu nó thì app không đăng nhập được.
 
@@ -39,4 +39,6 @@ Project ID trong ảnh phải trùng với `google-services.json`.
 
 ## Cloud Storage
 
-Đề có mục này, nhưng Spark không dùng được. `storage.rules` vẫn nằm trong repo. Nếu sau này có bucket, chỉ cần đưa luật lên và đổi `enable_cloud_upload` thành `true`, không phải build lại.
+Spark không có bucket, nên app **tạm upload báo cáo lên Cloudinary** (thầy cho phép thay thế). Backend ký từng lần upload cho `reports/{uid}/`, lấy uid từ Firebase token, nên mỗi user chỉ ghi được vào thư mục của mình và secret không nằm trong app. Cách cài: mục "Upload báo cáo lên Cloudinary" trong [`backend/README.md`](../backend/README.md).
+
+`storage.rules` vẫn nằm trong repo. Khi project lên Blaze và có bucket: đưa luật lên, đổi provider trong `lib/main.dart` về `FirebaseStorageService()`, rồi build lại.

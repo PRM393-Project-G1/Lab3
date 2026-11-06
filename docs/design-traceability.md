@@ -24,7 +24,7 @@ Trạng thái: `Todo` · `Doing` · `Done`.
 | 9 | History | `/history` | `HistoryScreen` / `HistoryViewModel` | `users/{uid}/library`, `analyses/{id}` | Doing |
 | 10 | Notifications | `/notifications` | `NotificationsScreen` / `NotificationsViewModel` | `users/{uid}/notifications`; FCM | Doing |
 | 11 | Profile | `/profile` | `ProfileScreen` / `ProfileViewModel` | Firebase Auth; Remote Config; Crashlytics | Doing |
-| — | Sheet Export report | (overlay của 4, 11) | `ExportSheet` / `ExportViewModel` | `ReportService` (PDF); `ReportFiles` (máy). Khi bật `enable_cloud_upload`: Cloud Storage `reports/{uid}/…`, `users/{uid}/reports` | Doing |
+| — | Sheet Export report | (overlay của 4, 11) | `ExportSheet` / `ExportViewModel` | `ReportService` (PDF); `ReportFiles` (máy). Khi bật `enable_cloud_upload`: Cloudinary `reports/{uid}/…` (backend ký), `users/{uid}/reports` | Doing |
 
 ## 2. Flow
 
@@ -33,7 +33,7 @@ Trạng thái: `Todo` · `Doing` · `Done`.
 | A. Phân tích bài báo | Happy | 2 → 3 → 4 | `search`, `view_analysis` | TC-16 | Doing |
 | | A1 đã phân tích | 2 → 4 | `search` (`cache_hit`) | TC-03 | Doing |
 | | A2 share từ trình duyệt | Chrome → 2 | — | TC-05 | Doing |
-| | A3 chạy nền + push | 3 → push → 4 | `notification_open` | TC-10 | Doing |
+| | A3 chạy nền + push | 3 → push → 4 | `open_notification` | TC-10 | Doing |
 | | A-E1 sai định dạng | 2 | — | TC-04 | Doing |
 | | A-E2 thất bại | 3 | — | — | Doing |
 | | A-E3 offline | 3 | — | — | Doing |
@@ -106,7 +106,7 @@ Thầy đã duyệt đổi sang sản phẩm RefCheck + Saffron, và nhóm làm 
 | Export | `Copy link` hiện snackbar `Link copied` | Sheet đóng lại rồi mới hiện snackbar | Snackbar nằm dưới sheet nên không thấy được | Không cần |
 | Reference | Dialog `Likely fabricated` chỉ tự mở | Banner có thêm nút `Details` để mở lại | Đóng dialog xong không còn cách xem lại | Chưa |
 | Analyzing | `Back` về `/analyze` | Quay lại màn trước; không có lịch sử thì về `/analyze` | Mở từ History thì nên về History | Không cần |
-| Export | `Uploading` → `Uploaded`, có `Copy link` | Mặc định `Creating PDF…` → `Saved on device`, có `Open` và `Share`. Upload chỉ chạy khi bật `enable_cloud_upload` | Nhóm dùng gói Spark, không có bucket Cloud Storage | Có |
+| Export | `Uploading` → `Uploaded`, có `Copy link` | Mặc định `Creating PDF…` → `Saved on device`, có `Open` và `Share`. Upload chỉ chạy khi bật `enable_cloud_upload`, và lên Cloudinary thay vì Cloud Storage | Nhóm dùng gói Spark, không có bucket Cloud Storage; thầy cho phép dùng Cloudinary thay thế | Có |
 | Export | `Upload failed` | `Export failed` | Trên Spark, lỗi đến từ khâu tạo hoặc lưu PDF, không phải upload | Có |
 | Export | Nút `Done`, `Cancel`, `×` trong sheet | Kéo xuống hoặc chạm ngoài sheet để đóng | Cùng tác dụng, ít chữ hơn | Không cần |
 | Sign-in | Logo Google, logo Realtron | Icon Material thay thế | Chưa có file ảnh; cần thay trước khi nộp | Không cần |

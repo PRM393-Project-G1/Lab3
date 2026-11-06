@@ -196,7 +196,7 @@ void main() {
       expect(await vm.open(item), id);
 
       expect(firestore.readIds, ['n1']);
-      expect(analytics.events, ['notification_open:analysis_done']);
+      expect(analytics.events, ['open_notification:analysis_done']);
     });
 
     test('a read mark that never finishes does not block opening', () async {
