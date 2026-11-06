@@ -59,11 +59,7 @@ class ProfileViewModel extends BaseViewModel {
 
   /// Key and current value of each Remote Config parameter.
   List<(String, String)> get remoteConfigRows => [
-    ('weak_topic_threshold', '${_remoteConfig.weakTopicThreshold}'),
-    ('weak_topic_min_refs', '${_remoteConfig.weakTopicMinRefs}'),
-    ('max_recent_checks', '${_remoteConfig.maxRecentChecks}'),
-    ('enable_report_export', '${_remoteConfig.enableReportExport}'),
-    ('enable_cloud_upload', '${_remoteConfig.enableCloudUpload}'),
+    for (final (key, value) in _remoteConfig.parameters) (key, '$value'),
   ];
 
   Future<void> setAiCheck(bool value) => _settings.setAiCheck(value);

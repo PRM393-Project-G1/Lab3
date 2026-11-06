@@ -5,6 +5,16 @@ import 'package:flutter/foundation.dart';
 
 import '../models/weak_topic_rule.dart';
 
+/// Parameter names in the Firebase Console. Keep in sync with
+/// `firebase/remote-config-defaults.json`.
+abstract final class RemoteConfigKeys {
+  static const weakTopicThreshold = 'weak_topic_threshold';
+  static const weakTopicMinRefs = 'weak_topic_min_refs';
+  static const maxRecentChecks = 'max_recent_checks';
+  static const enableReportExport = 'enable_report_export';
+  static const enableCloudUpload = 'enable_cloud_upload';
+}
+
 /// Values changed from the Firebase Console without a new build.
 abstract class RemoteConfigService extends ChangeNotifier {
   double get weakTopicThreshold;
@@ -17,12 +27,20 @@ abstract class RemoteConfigService extends ChangeNotifier {
   bool get enableCloudUpload;
 }
 
-extension WeakTopicRuleConfig on RemoteConfigService {
+/// Derived from the parameters, so every implementation and test double agrees.
+extension RemoteConfigValues on RemoteConfigService {
   /// The weak-topic rule as currently set in the Firebase Console.
-  WeakTopicRule get weakTopicRule => WeakTopicRule(
-    threshold: weakTopicThreshold,
-    minRefs: weakTopicMinRefs,
-  );
+  WeakTopicRule get weakTopicRule =>
+      WeakTopicRule(threshold: weakTopicThreshold, minRefs: weakTopicMinRefs);
+
+  /// Each parameter with its current value, in Console order.
+  List<(String, Object)> get parameters => [
+    (RemoteConfigKeys.weakTopicThreshold, weakTopicThreshold),
+    (RemoteConfigKeys.weakTopicMinRefs, weakTopicMinRefs),
+    (RemoteConfigKeys.maxRecentChecks, maxRecentChecks),
+    (RemoteConfigKeys.enableReportExport, enableReportExport),
+    (RemoteConfigKeys.enableCloudUpload, enableCloudUpload),
+  ];
 }
 
 class FirebaseRemoteConfigService extends RemoteConfigService {
@@ -34,11 +52,11 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
 
   /// Keep in sync with `firebase/remote-config-defaults.json`.
   static const defaults = <String, dynamic>{
-    'weak_topic_threshold': 0.5,
-    'weak_topic_min_refs': 3,
-    'max_recent_checks': 10,
-    'enable_report_export': true,
-    'enable_cloud_upload': false,
+    RemoteConfigKeys.weakTopicThreshold: 0.5,
+    RemoteConfigKeys.weakTopicMinRefs: 3,
+    RemoteConfigKeys.maxRecentChecks: 10,
+    RemoteConfigKeys.enableReportExport: true,
+    RemoteConfigKeys.enableCloudUpload: false,
   };
 
   Future<void> init() async {
@@ -69,17 +87,20 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
   }
 
   @override
-  double get weakTopicThreshold => _config.getDouble('weak_topic_threshold');
+  double get weakTopicThreshold =>
+      _config.getDouble(RemoteConfigKeys.weakTopicThreshold);
 
   @override
-  int get weakTopicMinRefs => _config.getInt('weak_topic_min_refs');
+  int get weakTopicMinRefs => _config.getInt(RemoteConfigKeys.weakTopicMinRefs);
 
   @override
-  int get maxRecentChecks => _config.getInt('max_recent_checks');
+  int get maxRecentChecks => _config.getInt(RemoteConfigKeys.maxRecentChecks);
 
   @override
-  bool get enableReportExport => _config.getBool('enable_report_export');
+  bool get enableReportExport =>
+      _config.getBool(RemoteConfigKeys.enableReportExport);
 
   @override
-  bool get enableCloudUpload => _config.getBool('enable_cloud_upload');
+  bool get enableCloudUpload =>
+      _config.getBool(RemoteConfigKeys.enableCloudUpload);
 }

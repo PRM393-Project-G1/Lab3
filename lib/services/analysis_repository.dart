@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../firebase/firestore_schema.dart';
 import '../models/analysis.dart';
 import '../models/analysis_results.dart';
 import '../models/reference.dart';
@@ -38,12 +39,9 @@ extension AnalysisResultsReading on AnalysisRepository {
 
 class FirestoreAnalysisRepository implements AnalysisRepository {
   FirestoreAnalysisRepository({FirebaseFirestore? db})
-    : _db = db ?? FirebaseFirestore.instance;
+    : _paths = FirestorePaths(db ?? FirebaseFirestore.instance);
 
-  final FirebaseFirestore _db;
-
-  DocumentReference<Map<String, dynamic>> _doc(String id) =>
-      _db.collection('analyses').doc(id);
+  final FirestorePaths _paths;
 
   Analysis? _map(DocumentSnapshot<Map<String, dynamic>> snap) => snap.exists
       ? Analysis.fromMap(
@@ -56,7 +54,7 @@ class FirestoreAnalysisRepository implements AnalysisRepository {
   @override
   Future<Analysis?> getAnalysis(String id) async {
     try {
-      return _map(await _doc(id).get());
+      return _map(await _paths.analysis(id).get());
     } on FirebaseException catch (error) {
       if (error.code == 'unavailable') throw const OfflineException();
       rethrow;
@@ -65,23 +63,23 @@ class FirestoreAnalysisRepository implements AnalysisRepository {
 
   @override
   Stream<Analysis?> watchAnalysis(String id) =>
-      _doc(id).snapshots(includeMetadataChanges: true).map(_map);
+      _paths.analysis(id).snapshots(includeMetadataChanges: true).map(_map);
 
   @override
   Future<List<Topic>> getTopics(String id) async {
-    final snap = await _doc(id).collection('topics').get();
+    final snap = await _paths.topics(id).get();
     return snap.docs.map((d) => Topic.fromMap(d.id, d.data())).toList();
   }
 
   @override
   Future<List<Reference>> getReferences(String id) async {
-    final snap = await _doc(id).collection('references').orderBy('index').get();
+    final snap = await _paths.references(id).orderBy('index').get();
     return snap.docs.map((d) => Reference.fromMap(d.id, d.data())).toList();
   }
 
   @override
   Future<Reference?> getReference(String id, String refId) async {
-    final snap = await _doc(id).collection('references').doc(refId).get();
+    final snap = await _paths.references(id).doc(refId).get();
     return snap.exists ? Reference.fromMap(snap.id, snap.data()!) : null;
   }
 }
