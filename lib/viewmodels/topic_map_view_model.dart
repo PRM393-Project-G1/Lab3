@@ -1,9 +1,8 @@
 import '../firebase/analytics_service.dart';
 import '../firebase/remote_config_service.dart';
-import '../models/analysis.dart';
+import '../models/analysis_results.dart';
 import '../models/ref_status.dart';
 import '../models/reference.dart';
-import '../models/topic.dart';
 import '../models/topic_tree.dart';
 import '../services/analysis_repository.dart';
 import 'base_view_model.dart';
@@ -38,22 +37,22 @@ class TopicMapViewModel extends BaseViewModel {
   final AnalyticsService _analytics;
 
   ViewState<TopicTree> _state = const Loading();
-  Analysis? _analysis;
-  List<Topic> _topics = const [];
-  List<Reference> _references = const [];
+  AnalysisResults _results = const AnalysisResults();
   final Set<String> _collapsed = {};
   bool _weakOnly = false;
 
   ViewState<TopicTree> get state => _state;
   bool get weakOnly => _weakOnly;
-  String? get paperTitle => _analysis?.displayTitle;
+  String? get paperTitle => _results.analysis?.displayTitle;
 
-  int get unclassifiedCount =>
-      _references.where((ref) => ref.isUnclassified).length;
+  /// References with no readable text, so no topic.
+  Iterable<Reference> get _unclassified =>
+      _results.references.where((ref) => ref.isUnclassified);
 
-  StatusCounts get unclassifiedCounts => StatusCounts.fromStatuses(
-    _references.where((ref) => ref.isUnclassified).map((ref) => ref.status),
-  );
+  int get unclassifiedCount => _unclassified.length;
+
+  StatusCounts get unclassifiedCounts =>
+      StatusCounts.fromStatuses(_unclassified.map((ref) => ref.status));
 
   /// Whole percent used by the footer rule, from Remote Config.
   int get weakPercent => _remoteConfig.weakTopicRule.percent;
@@ -80,14 +79,7 @@ class TopicMapViewModel extends BaseViewModel {
     _state = const Loading();
     notifyListeners();
     try {
-      final (analysis, topics, references) = await (
-        _analyses.getAnalysis(analysisId),
-        _analyses.getTopics(analysisId),
-        _analyses.getReferences(analysisId),
-      ).wait;
-      _analysis = analysis;
-      _topics = topics;
-      _references = references;
+      _results = await _analyses.getResults(analysisId);
       _rebuild();
     } catch (_) {
       _state = const Failure.loadFailed();
@@ -108,19 +100,13 @@ class TopicMapViewModel extends BaseViewModel {
   }
 
   void _rebuild() {
-    if (_analysis == null) {
+    if (_results.analysis == null) {
       notifyListeners();
       return;
     }
-    _state = _topics.isEmpty && unclassifiedCount == 0
+    _state = _results.topics.isEmpty && unclassifiedCount == 0
         ? const Empty()
-        : Data(
-            TopicTree.build(
-              topics: _topics,
-              references: _references,
-              weakRule: _remoteConfig.weakTopicRule,
-            ),
-          );
+        : Data(_results.tree(_remoteConfig.weakTopicRule));
     notifyListeners();
   }
 

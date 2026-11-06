@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/analysis.dart';
+import '../models/analysis_results.dart';
 import '../models/reference.dart';
 import '../models/topic.dart';
 
@@ -16,6 +17,23 @@ abstract class AnalysisRepository {
   Future<List<Topic>> getTopics(String id);
   Future<List<Reference>> getReferences(String id);
   Future<Reference?> getReference(String id, String refId);
+}
+
+/// Built on the interface, so every repository and test double gets it free.
+extension AnalysisResultsReading on AnalysisRepository {
+  /// Reads the paper, its topics and its references in parallel.
+  Future<AnalysisResults> getResults(String id) async {
+    final (analysis, topics, references) = await (
+      getAnalysis(id),
+      getTopics(id),
+      getReferences(id),
+    ).wait;
+    return AnalysisResults(
+      analysis: analysis,
+      topics: topics,
+      references: references,
+    );
+  }
 }
 
 class FirestoreAnalysisRepository implements AnalysisRepository {

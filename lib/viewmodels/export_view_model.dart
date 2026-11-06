@@ -5,7 +5,6 @@ import '../firebase/firestore_service.dart';
 import '../firebase/remote_config_service.dart';
 import '../firebase/storage_service.dart';
 import '../models/reference.dart';
-import '../models/topic_tree.dart';
 import '../services/analysis_repository.dart';
 import '../services/device_actions.dart';
 import '../services/report_files.dart';
@@ -60,23 +59,17 @@ class ExportViewModel extends BaseViewModel {
     notifyListeners();
     try {
       final uid = _auth.currentUser?.uid;
-      final (analysis, topics, references) = await (
-        _analyses.getAnalysis(analysisId),
-        _analyses.getTopics(analysisId),
-        _analyses.getReferences(analysisId),
-      ).wait;
+      final results = await _analyses.getResults(analysisId);
+      final analysis = results.analysis;
       if (uid == null || analysis == null) {
         throw StateError('Nothing to export');
       }
-      final tree = TopicTree.build(
-        topics: topics,
-        references: references,
-        weakRule: _remoteConfig.weakTopicRule,
-      );
       final bytes = await _report.buildReport(
         analysis: analysis,
-        weakTopics: tree.weak,
-        flagged: sortBySeverity(references.where((r) => r.status.isFlagged)),
+        weakTopics: results.tree(_remoteConfig.weakTopicRule).weak,
+        flagged: sortBySeverity(
+          results.references.where((r) => r.status.isFlagged),
+        ),
       );
       _sizeKb = (bytes.length / 1024).ceil();
       _path = await _files.save(uid: uid, fileName: fileName, bytes: bytes);

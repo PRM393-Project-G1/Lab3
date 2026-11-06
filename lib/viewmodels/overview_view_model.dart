@@ -2,9 +2,8 @@ import '../firebase/analytics_service.dart';
 import '../firebase/crashlytics_service.dart';
 import '../firebase/remote_config_service.dart';
 import '../models/analysis.dart';
+import '../models/analysis_results.dart';
 import '../models/ref_status.dart';
-import '../models/reference.dart';
-import '../models/topic.dart';
 import '../models/topic_tree.dart';
 import '../services/analysis_repository.dart';
 import 'base_view_model.dart';
@@ -46,9 +45,7 @@ class OverviewViewModel extends BaseViewModel {
   final CrashlyticsService _crashlytics;
 
   ViewState<OverviewData> _state = const Loading();
-  Analysis? _analysis;
-  List<Topic> _topics = const [];
-  List<Reference> _references = const [];
+  AnalysisResults? _results;
   bool _logged = false;
 
   ViewState<OverviewData> get state => _state;
@@ -58,19 +55,14 @@ class OverviewViewModel extends BaseViewModel {
     _state = const Loading();
     notifyListeners();
     try {
-      final (analysis, topics, references) = await (
-        _analyses.getAnalysis(analysisId),
-        _analyses.getTopics(analysisId),
-        _analyses.getReferences(analysisId),
-      ).wait;
+      final results = await _analyses.getResults(analysisId);
+      final analysis = results.analysis;
       if (analysis == null) {
         _state = const Failure.loadFailed();
         notifyListeners();
         return;
       }
-      _analysis = analysis;
-      _topics = topics;
-      _references = references;
+      _results = results;
       _rebuild();
       if (!_logged) {
         _logged = true;
@@ -89,20 +81,14 @@ class OverviewViewModel extends BaseViewModel {
 
   /// Remote Config can change the weak rule while the screen is open.
   void _rebuild() {
-    final analysis = _analysis;
-    if (analysis == null) {
+    final results = _results;
+    final analysis = results?.analysis;
+    if (results == null || analysis == null) {
       notifyListeners();
       return;
     }
     _state = Data(
-      OverviewData(
-        analysis,
-        TopicTree.build(
-          topics: _topics,
-          references: _references,
-          weakRule: _remoteConfig.weakTopicRule,
-        ),
-      ),
+      OverviewData(analysis, results.tree(_remoteConfig.weakTopicRule)),
     );
     notifyListeners();
   }
