@@ -2,6 +2,7 @@ import '../firebase/crashlytics_service.dart';
 import '../services/api_client.dart';
 import '../services/device_actions.dart';
 import '../services/server_settings.dart';
+import '../utils/server_url.dart';
 import 'base_view_model.dart';
 
 enum ConnectStatus { idle, empty, testing, connected, failed }
@@ -33,14 +34,6 @@ class ConnectViewModel extends BaseViewModel {
   /// Saving is only possible after a successful test.
   bool get canSave => _status == ConnectStatus.connected;
 
-  /// Adds http:// when missing, since Tailscale addresses are plain HTTP.
-  static String normalize(String input) {
-    var url = input.trim();
-    if (url.isEmpty) return url;
-    if (!url.contains('://')) url = 'http://$url';
-    return url.replaceFirst(RegExp(r'/+$'), '');
-  }
-
   void setUrl(String value) {
     if (value == _url) return;
     _url = value;
@@ -57,7 +50,7 @@ class ConnectViewModel extends BaseViewModel {
   }
 
   Future<void> test() async {
-    final url = normalize(_url);
+    final url = normalizeServerUrl(_url);
     if (url.isEmpty) {
       _status = ConnectStatus.empty;
       notifyListeners();
@@ -67,7 +60,7 @@ class ConnectViewModel extends BaseViewModel {
     _failure = null;
     notifyListeners();
     try {
-      if (Uri.tryParse(url)?.host.isEmpty ?? true) {
+      if (!hasServerHost(url)) {
         throw const ApiException(ApiFailure.unreachable);
       }
       _latencyMs = await _api.health(url);
@@ -89,6 +82,6 @@ class ConnectViewModel extends BaseViewModel {
 
   Future<void> save() async {
     if (!canSave) return;
-    await _settings.setServerUrl(normalize(_url));
+    await _settings.setServerUrl(normalizeServerUrl(_url));
   }
 }

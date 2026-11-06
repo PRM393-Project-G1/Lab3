@@ -25,15 +25,6 @@ void main() {
     crashlytics = FakeCrashlytics();
   });
 
-  test('normalize adds http:// and removes trailing slashes', () {
-    expect(
-      ConnectViewModel.normalize(' 100.1.2.3:8000/ '),
-      'http://100.1.2.3:8000',
-    );
-    expect(ConnectViewModel.normalize('https://a.test//'), 'https://a.test');
-    expect(ConnectViewModel.normalize('   '), '');
-  });
-
   test('an empty address never reaches the network', () async {
     final vm = build();
     await vm.test();
