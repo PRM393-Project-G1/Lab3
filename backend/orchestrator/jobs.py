@@ -6,9 +6,11 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Protocol
+from typing import Any
 
 from . import merge
+from .contract import DONE, DONE_TITLE, FAILED, PROCESSING
+from .ports import AnalysisSteps, ProgressStore
 from .steps import StepError
 
 logger = logging.getLogger(__name__)
@@ -19,13 +21,6 @@ PROGRESS_INTERVAL_SECONDS = 2.0
 STAGE_PERCENT = {"references": 0, "verify": 10, "fabrication": 60, "fulltext": 70, "topics": 85}
 
 
-class Store(Protocol):
-    def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
-    def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
-    def replace_results(self, analysis_id: str, references: Any, topics: Any) -> None: ...
-    def notify_done(self, uid: str, analysis_id: str, title: str, body: str) -> None: ...
-
-
 class _Progress:
     """Writes progress in order, on its own thread, callable from any thread.
 
@@ -34,7 +29,7 @@ class _Progress:
     status, or a late update would set it back to `processing`.
     """
 
-    def __init__(self, store: Store, analysis_id: str) -> None:
+    def __init__(self, store: ProgressStore, analysis_id: str) -> None:
         self._store = store
         self._id = analysis_id
         self._writer = ThreadPoolExecutor(max_workers=1)
@@ -56,7 +51,7 @@ class _Progress:
         end = STAGE_PERCENT[stages[following]] if following < len(stages) else 100
         start = STAGE_PERCENT[stage]
         update = {
-            "status": "processing",
+            "status": PROCESSING,
             "progress": {
                 "stage": stage,
                 "percent": int(start + (end - start) * fraction),
@@ -79,7 +74,7 @@ class _Progress:
 
 
 class Pipeline:
-    def __init__(self, store: Store, steps: Any) -> None:
+    def __init__(self, store: ProgressStore, steps: AnalysisSteps) -> None:
         self._store = store
         self._steps = steps
 
@@ -99,7 +94,7 @@ class Pipeline:
             progress.close()
         if failure:
             await asyncio.to_thread(
-                self._store.finish_analysis, analysis_id, {"status": "failed", "error": failure}
+                self._store.finish_analysis, analysis_id, {"status": FAILED, "error": failure}
             )
 
     async def _analyze(
@@ -158,7 +153,7 @@ class Pipeline:
             store.finish_analysis,
             analysis_id,
             {
-                "status": "done",
+                "status": DONE,
                 "paperTitle": title,
                 "summary": summary,
                 "error": None,
@@ -167,7 +162,7 @@ class Pipeline:
         )
         try:
             await asyncio.to_thread(
-                store.notify_done, uid, analysis_id, "Analysis done", merge.done_message(title, summary)
+                store.notify_done, uid, analysis_id, DONE_TITLE, merge.done_message(title, summary)
             )
         except Exception:  # The results are saved; a missed push does not undo them.
             logger.exception("Couldn't notify %s about %s", uid, analysis_id)
