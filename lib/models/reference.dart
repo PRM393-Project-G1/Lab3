@@ -46,7 +46,7 @@ class Reference {
       id: id,
       index: (map['index'] as num?)?.toInt() ?? 0,
       title: map['title'] as String? ?? 'Untitled',
-      status: RefStatusParsing.parse(map['status'] as String?),
+      status: RefStatus.parse(map['status'] as String?),
       authors: (map['authors'] as List?)?.cast<String>() ?? const [],
       year: (map['year'] as num?)?.toInt(),
       venue: map['venue'] as String?,

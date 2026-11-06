@@ -5,7 +5,6 @@ import '../firebase/auth_service.dart';
 import '../firebase/crashlytics_service.dart';
 import '../firebase/messaging_service.dart';
 import '../firebase/remote_config_service.dart';
-import '../models/analysis.dart';
 import '../models/app_user.dart';
 import '../models/library_entry.dart';
 import '../services/library_feed.dart';
@@ -53,7 +52,7 @@ class ProfileViewModel extends BaseViewModel {
   /// The newest finished analysis, used by the Export report demo.
   String? get latestDoneId {
     for (final entry in _entries) {
-      if (entry.analysis?.status == AnalysisStatus.done) return entry.arxivId;
+      if (entry.analysis?.isDone ?? false) return entry.arxivId;
     }
     return null;
   }

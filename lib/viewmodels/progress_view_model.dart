@@ -77,9 +77,7 @@ class ProgressViewModel extends BaseViewModel {
 
   bool get isDone => analysis?.isDone ?? false;
 
-  bool get isFailed =>
-      analysis?.status == AnalysisStatus.failed ||
-      analysis?.status == AnalysisStatus.cancelled;
+  bool get isFailed => analysis?.isStopped ?? false;
 
   bool get isOffline => analysis?.fromCache ?? false;
 

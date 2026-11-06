@@ -4,7 +4,6 @@ import '../firebase/crashlytics_service.dart';
 import '../firebase/firestore_service.dart';
 import '../firebase/remote_config_service.dart';
 import '../firebase/storage_service.dart';
-import '../models/ref_status.dart';
 import '../models/reference.dart';
 import '../models/topic_tree.dart';
 import '../services/analysis_repository.dart';
@@ -78,13 +77,7 @@ class ExportViewModel extends BaseViewModel {
       final bytes = await _report.buildReport(
         analysis: analysis,
         weakTopics: tree.weak,
-        flagged: sortBySeverity(
-          references.where(
-            (r) =>
-                r.status != RefStatus.verified &&
-                r.status != RefStatus.unverified,
-          ),
-        ),
+        flagged: sortBySeverity(references.where((r) => r.status.isFlagged)),
       );
       _sizeKb = (bytes.length / 1024).ceil();
       _path = await _files.save(uid: uid, fileName: fileName, bytes: bytes);

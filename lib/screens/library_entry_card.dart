@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/analysis.dart';
 import '../models/library_entry.dart';
 import '../utils/time_format.dart';
 import '../widgets/history_card.dart';
@@ -23,13 +22,12 @@ class LibraryEntryCard extends StatelessWidget {
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
 
-  HistoryCardState get _state => switch (entry.analysis?.status) {
-    AnalysisStatus.queued ||
-    AnalysisStatus.processing => HistoryCardState.running,
-    AnalysisStatus.failed ||
-    AnalysisStatus.cancelled => HistoryCardState.failed,
-    _ => HistoryCardState.done,
-  };
+  HistoryCardState get _state {
+    final analysis = entry.analysis;
+    if (analysis?.isRunning ?? false) return HistoryCardState.running;
+    if (analysis?.isStopped ?? false) return HistoryCardState.failed;
+    return HistoryCardState.done;
+  }
 
   @override
   Widget build(BuildContext context) => HistoryCard(

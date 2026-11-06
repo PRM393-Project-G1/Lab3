@@ -51,17 +51,9 @@ class TopicMapViewModel extends BaseViewModel {
   int get unclassifiedCount =>
       _references.where((ref) => ref.isUnclassified).length;
 
-  StatusCounts get unclassifiedCounts {
-    final refs = _references.where((ref) => ref.isUnclassified).toList();
-    int of(RefStatus status) => refs.where((r) => r.status == status).length;
-    return StatusCounts(
-      hallucinated: of(RefStatus.hallucinated),
-      error: of(RefStatus.error),
-      warning: of(RefStatus.warning),
-      unverified: of(RefStatus.unverified),
-      verified: of(RefStatus.verified),
-    );
-  }
+  StatusCounts get unclassifiedCounts => StatusCounts.fromStatuses(
+    _references.where((ref) => ref.isUnclassified).map((ref) => ref.status),
+  );
 
   /// Whole percent used by the footer rule, from Remote Config.
   int get weakPercent => (_remoteConfig.weakTopicThreshold * 100).round();

@@ -77,14 +77,8 @@ class TopicTree {
   static StatusCounts _count(TopicNode node, Map<String, RefStatus> statuses) {
     // Older results may hold counts without the reference documents.
     if (statuses.isEmpty) return node.topic.counts;
-    int of(RefStatus status) =>
-        node.refIds.where((id) => statuses[id] == status).length;
-    return StatusCounts(
-      hallucinated: of(RefStatus.hallucinated),
-      error: of(RefStatus.error),
-      warning: of(RefStatus.warning),
-      unverified: of(RefStatus.unverified),
-      verified: of(RefStatus.verified),
+    return StatusCounts.fromStatuses(
+      node.refIds.map((id) => statuses[id]).nonNulls,
     );
   }
 

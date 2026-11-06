@@ -1,9 +1,47 @@
 import 'ref_status.dart';
 
-enum AnalysisStatus { queued, processing, done, failed, cancelled, unknown }
+enum AnalysisStatus {
+  queued,
+  processing,
+  done,
+  failed,
+  cancelled,
+  unknown;
+
+  /// Reads the value stored by the backend.
+  static AnalysisStatus parse(Object? value) => switch (value) {
+    'queued' => queued,
+    'processing' => processing,
+    'done' => done,
+    'failed' => failed,
+    'cancelled' => cancelled,
+    _ => unknown,
+  };
+
+  /// The backend still has work to do.
+  bool get isRunning => this == queued || this == processing;
+
+  /// The run ended without a result.
+  bool get isStopped => this == failed || this == cancelled;
+}
 
 /// The five stages of the analysis pipeline, in order.
-enum AnalysisStage { references, verify, fabrication, fullText, topics }
+enum AnalysisStage {
+  references,
+  verify,
+  fabrication,
+  fullText,
+  topics;
+
+  /// Reads `progress.stage`. Unknown values count as the first stage.
+  static AnalysisStage parse(Object? value) => switch (value) {
+    'verify' => verify,
+    'fabrication' => fabrication,
+    'fulltext' || 'full_text' => fullText,
+    'topics' => topics,
+    _ => references,
+  };
+}
 
 class AnalysisProgress {
   const AnalysisProgress({
@@ -16,13 +54,7 @@ class AnalysisProgress {
   factory AnalysisProgress.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const AnalysisProgress();
     return AnalysisProgress(
-      stage: switch (map['stage']) {
-        'verify' => AnalysisStage.verify,
-        'fabrication' => AnalysisStage.fabrication,
-        'fulltext' || 'full_text' => AnalysisStage.fullText,
-        'topics' => AnalysisStage.topics,
-        _ => AnalysisStage.references,
-      },
+      stage: AnalysisStage.parse(map['stage']),
       percent: (map['percent'] as num?)?.toInt() ?? 0,
       processedRefs: (map['processedRefs'] as num?)?.toInt() ?? 0,
       message: map['message'] as String?,
@@ -58,14 +90,7 @@ class Analysis {
     final counts = StatusCounts.fromMap(summary);
     return Analysis(
       id: id,
-      status: switch (map['status']) {
-        'queued' => AnalysisStatus.queued,
-        'processing' => AnalysisStatus.processing,
-        'done' => AnalysisStatus.done,
-        'failed' => AnalysisStatus.failed,
-        'cancelled' => AnalysisStatus.cancelled,
-        _ => AnalysisStatus.unknown,
-      },
+      status: AnalysisStatus.parse(map['status']),
       title: map['paperTitle'] as String?,
       authors: (map['paperAuthors'] as List?)?.cast<String>() ?? const [],
       progress: AnalysisProgress.fromMap(
@@ -92,8 +117,9 @@ class Analysis {
 
   bool get isDone => status == AnalysisStatus.done;
 
-  bool get isRunning =>
-      status == AnalysisStatus.queued || status == AnalysisStatus.processing;
+  bool get isRunning => status.isRunning;
+
+  bool get isStopped => status.isStopped;
 
   String get displayTitle => title ?? 'arXiv:$id';
 }
