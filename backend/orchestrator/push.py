@@ -12,6 +12,7 @@ import sys
 from dotenv import load_dotenv
 
 from . import merge
+from .contract import DONE, DONE_TITLE
 from .config import BACKEND_DIR
 from .store import FirebaseStore
 
@@ -24,14 +25,14 @@ def main() -> int:
     load_dotenv(BACKEND_DIR / ".env")
     store = FirebaseStore()
     analysis = store.get_analysis(args.paper) or {}
-    if analysis.get("status") != "done":
+    if analysis.get("status") != DONE:
         print(f"{args.paper} has no finished analysis.", file=sys.stderr)
         return 1
 
     users = store.users_with_tokens()
     title = analysis.get("paperTitle") or f"arXiv:{args.paper}"
     for uid in users:
-        store.notify_done(uid, args.paper, "Analysis done", merge.done_message(title, analysis["summary"]))
+        store.notify_done(uid, args.paper, DONE_TITLE, merge.done_message(title, analysis["summary"]))
     print(f"Sent to {len(users)} user(s).")
     return 0
 

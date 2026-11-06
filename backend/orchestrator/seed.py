@@ -14,6 +14,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from .config import BACKEND_DIR, Settings
+from .contract import DONE
 from .jobs import Pipeline
 from .steps import Steps
 from .store import FirebaseStore
@@ -48,14 +49,14 @@ async def main() -> int:
     failed = 0
     for paper in args.papers:
         existing = store.get_analysis(paper) or {}
-        if existing.get("status") == "done" and not args.force:
+        if existing.get("status") == DONE and not args.force:
             print(f"{paper}: already done")
             continue
         store.create_analysis(paper, REQUESTED_BY, not args.no_ai)
         await pipeline.run(paper, REQUESTED_BY, not args.no_ai)
         result = store.get_analysis(paper) or {}
         print(f"{paper}: {result.get('status')} {result.get('error') or result.get('summary')}")
-        failed += result.get("status") != "done"
+        failed += result.get("status") != DONE
     return 1 if failed else 0
 
 

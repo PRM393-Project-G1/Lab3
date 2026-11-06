@@ -9,10 +9,11 @@ from typing import Any
 import firebase_admin
 from firebase_admin import auth, exceptions, firestore, messaging
 
+from .contract import DONE_TYPE, FAILED, QUEUED, RUNNING
+
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 500
-RUNNING = ("queued", "processing")
 RESTARTED = "The server restarted. Try again."
 _TOKEN_GONE = (messaging.UnregisteredError, messaging.SenderIdMismatchError)
 
@@ -46,7 +47,7 @@ class FirebaseStore:
                 "requestedBy": uid,
                 "aiAssisted": ai_assisted,
                 "createdAt": firestore.SERVER_TIMESTAMP,
-                "status": "queued",
+                "status": QUEUED,
                 "progress": {"stage": "references", "percent": 0, "processedRefs": 0},
                 "error": None,
             },
@@ -66,7 +67,7 @@ class FirebaseStore:
         )
         count = 0
         for snapshot in query.stream():
-            snapshot.reference.set({"status": "failed", "error": RESTARTED}, merge=True)
+            snapshot.reference.set({"status": FAILED, "error": RESTARTED}, merge=True)
             count += 1
         return count
 
@@ -114,7 +115,7 @@ class FirebaseStore:
             {
                 "title": title,
                 "body": body,
-                "type": "analysis_done",
+                "type": DONE_TYPE,
                 "analysisId": analysis_id,
                 "createdAt": firestore.SERVER_TIMESTAMP,
                 "read": False,
