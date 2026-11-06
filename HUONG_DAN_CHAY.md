@@ -105,8 +105,8 @@ Khoá service account **không có trong repo**. Xin trực tiếp người gi�
 | Mục | Giá trị |
 |---|---|
 | Project | `realtron-874ac`, gói Spark |
-| Remote Config | `enable_cloud_upload` phải là `false`, vì Spark không có Cloud Storage |
-| Xuất báo cáo | PDF lưu trên máy, có `Open` và `Share`, không upload |
+| Remote Config | `enable_cloud_upload`: `false` thì chỉ lưu PDF trên máy; `true` thì upload thêm lên Cloudinary qua backend |
+| Xuất báo cáo | PDF lưu trên máy, có `Open` và `Share`. Khi bật upload: có thanh tiến độ, link và `Copy link`. Spark không có Cloud Storage nên tạm dùng Cloudinary |
 
 Hướng dẫn tạo lại từ đầu: [`firebase/README.md`](firebase/README.md).
 
@@ -121,7 +121,7 @@ Test ARTEMIS cần thêm máy chủ ARTEMIS, API key của model và tài khoả
 | Màn Connect báo `Can't reach server` hoặc `Timed out` | Tailscale chưa bật ở một trong hai máy, backend chưa chạy, hoặc firewall chặn | Kiểm tra lần lượt; cho phép Python qua Windows Firewall |
 | Google Sign-In báo `Sign-in failed` | SHA-1 của máy build chưa có trên Firebase | Thêm SHA-1, tải lại `google-services.json`, build lại |
 | App hiện `Setup needed` | APK build khi chưa có `android/app/google-services.json` | Thêm file đó rồi build lại |
-| `Report` báo `Export failed` | `enable_cloud_upload` đang là `true` | Đổi thành `false` trên Console rồi Publish |
+| `Report` báo `Export failed` khi upload | Backend tắt, hoặc `.env` thiếu `CLOUDINARY_*` (backend log `report uploads are off`) | Bật backend, điền `CLOUDINARY_*`; hoặc đổi `enable_cloud_upload` thành `false` trên Console |
 | Phân tích báo `Couldn't read this paper's references.` | GROBID chưa chạy và không có key LLM | `docker start realtron-grobid`; xem `work/{arxivId}/refchecker.log` |
 | Phân tích báo `Couldn't extract topics.` | Saffron lỗi | Xem `work/{arxivId}/saffron.log` |
 | Phân tích báo `Topic extraction isn't set up on the server.` | `.env` thiếu `SAFFRON_COMMAND` | Điền theo `.env.example` |

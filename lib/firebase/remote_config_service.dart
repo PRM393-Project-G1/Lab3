@@ -10,7 +10,8 @@ abstract class RemoteConfigService extends ChangeNotifier {
   int get maxRecentChecks;
   bool get enableReportExport;
 
-  /// Off on the Spark plan, which has no Cloud Storage bucket.
+  /// Uploads the report to Cloudinary when on. Off by default: the backend
+  /// needs its CLOUDINARY_* settings first.
   bool get enableCloudUpload;
 }
 

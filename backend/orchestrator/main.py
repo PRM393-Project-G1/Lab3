@@ -17,11 +17,14 @@ from . import __version__
 from .config import Settings
 from .jobs import JobManager, Pipeline
 from .steps import Steps
+from .uploads import CloudinarySigner
 
 logger = logging.getLogger(__name__)
 
 # Same rule as the app's parseArxivId: the ID becomes a Firestore document ID.
 _ARXIV_ID = re.compile(r"^\d{4}\.\d{4,5}$")
+# No slash, so the name cannot leave the user's folder.
+_REPORT_FILE = re.compile(r"^[A-Za-z0-9_.-]{1,100}\.pdf$")
 _RUNNING = ("queued", "processing")
 
 
@@ -30,7 +33,16 @@ class StartRequest(BaseModel):
     aiAssisted: bool = True
 
 
-def create_app(store: Any, verify_token: Callable[[str], str], steps: Any) -> FastAPI:
+class UploadRequest(BaseModel):
+    fileName: str
+
+
+def create_app(
+    store: Any,
+    verify_token: Callable[[str], str],
+    steps: Any,
+    signer: CloudinarySigner | None = None,
+) -> FastAPI:
     manager_holder: dict[str, JobManager] = {}
 
     @asynccontextmanager
@@ -85,6 +97,14 @@ def create_app(store: Any, verify_token: Callable[[str], str], steps: Any) -> Fa
         await asyncio.to_thread(store.finish_analysis, analysis_id, {"status": "cancelled"})
         return {"analysisId": analysis_id, "status": "cancelled"}
 
+    @app.post("/api/uploads/signature")
+    def sign_upload(request: UploadRequest, uid: str = Depends(current_user)) -> dict:
+        if signer is None:
+            raise HTTPException(503, "Uploads aren't set up on the server.")
+        if not _REPORT_FILE.match(request.fileName):
+            raise HTTPException(422, "Not a report file name")
+        return signer.sign(uid, request.fileName)
+
     return app
 
 
@@ -96,4 +116,7 @@ def build_app() -> FastAPI:
     key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if not key or not os.path.isfile(key):
         raise SystemExit("Set GOOGLE_APPLICATION_CREDENTIALS in .env to the service account key file.")
-    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()))
+    signer = CloudinarySigner.from_env()
+    if signer is None:
+        logger.warning("No CLOUDINARY_* settings: report uploads are off")
+    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()), signer)

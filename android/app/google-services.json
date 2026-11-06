@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1089055864452-2cdk65c9fvg762heki9vfs0d1i3k04gl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.fpt.prm393.realtron",
+            "certificate_hash": "dc6f9079d027430a9371ba9981bff4ce92eadbf7"
+          }
+        },
+        {
           "client_id": "1089055864452-7q0c9kconp4tonjrp77upg36kf6lgoat.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

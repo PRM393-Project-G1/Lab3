@@ -180,6 +180,7 @@ App chỉ gọi backend để ra lệnh. Mọi lệnh `POST` gửi `Authorizatio
 | `GET /api/health` | | `{ "status": "ok", "version": "…" }`. Thiếu `status: ok` thì app báo `Not a Realtron server` |
 | `POST /api/analyses` | `{ "arxivId", "aiAssisted" }` | `{ "analysisId", "status" }`, mã 2xx |
 | `POST /api/analyses/{id}/cancel` | `{}` | Mã 2xx |
+| `POST /api/uploads/signature` | `{ "fileName" }` | `{ "uploadUrl", "fields" }`: chữ ký Cloudinary cho `reports/{uid}/{fileName}`, uid lấy từ token. `503` khi backend chưa có `CLOUDINARY_*` |
 
 ## 9. Remote Config
 
@@ -189,4 +190,4 @@ App chỉ gọi backend để ra lệnh. Mọi lệnh `POST` gửi `Authorizatio
 | `weak_topic_min_refs` | `3` | Chủ đề quá nhỏ thì không xét yếu |
 | `max_recent_checks` | `10` | Số thẻ ở mục Recent |
 | `enable_report_export` | `true` | Ẩn hoặc hiện nút `Report` ở Overview |
-| `enable_cloud_upload` | `false` | Bật thì upload PDF lên Cloud Storage. Tắt thì chỉ lưu trên máy (gói Spark) |
+| `enable_cloud_upload` | `false` | Bật thì upload PDF lên Cloudinary (gói Spark không có Cloud Storage). Tắt thì chỉ lưu trên máy |

@@ -19,11 +19,22 @@ class ApiException implements Exception {
   String toString() => 'ApiException($failure)';
 }
 
+/// Where to send one report upload, and the form fields the backend signed.
+class UploadTicket {
+  const UploadTicket({required this.uploadUrl, required this.fields});
+
+  final String uploadUrl;
+  final Map<String, String> fields;
+}
+
 abstract class ApiClient {
   /// Checks a server address and returns the round trip in milliseconds.
   Future<int> health(String baseUrl);
   Future<void> startAnalysis(String arxivId, {required bool aiAssisted});
   Future<void> cancelAnalysis(String arxivId);
+
+  /// Asks the backend to sign an upload of [fileName] into the user's folder.
+  Future<UploadTicket> signUpload(String fileName);
 }
 
 class HttpApiClient implements ApiClient {
@@ -72,7 +83,26 @@ class HttpApiClient implements ApiClient {
   Future<void> cancelAnalysis(String arxivId) =>
       _post('/api/analyses/$arxivId/cancel', const {});
 
-  Future<void> _post(String path, Map<String, dynamic> body) async {
+  @override
+  Future<UploadTicket> signUpload(String fileName) async {
+    final response = await _post('/api/uploads/signature', {
+      'fileName': fileName,
+    });
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final fields = body['fields'] as Map<String, dynamic>;
+      return UploadTicket(
+        uploadUrl: body['uploadUrl'] as String,
+        fields: fields.map((key, value) => MapEntry(key, '$value')),
+      );
+    } on FormatException {
+      throw const ApiException(ApiFailure.notRealtron);
+    } on TypeError {
+      throw const ApiException(ApiFailure.notRealtron);
+    }
+  }
+
+  Future<http.Response> _post(String path, Map<String, dynamic> body) async {
     final base = _settings.serverUrl;
     if (base == null) throw const ApiException(ApiFailure.noServer);
     final String? token;
@@ -96,6 +126,7 @@ class HttpApiClient implements ApiClient {
     if (response.statusCode >= 300) {
       throw const ApiException(ApiFailure.rejected);
     }
+    return response;
   }
 
   Future<http.Response> _guard(

@@ -194,6 +194,20 @@ class FakeApi implements ApiClient {
     _maybeFail();
     cancelled.add(arxivId);
   }
+
+  @override
+  Future<UploadTicket> signUpload(String fileName) async {
+    _maybeFail();
+    return UploadTicket(
+      uploadUrl: 'https://upload.test/raw/upload',
+      fields: {
+        'api_key': 'key-123',
+        'public_id': 'reports/user-1/$fileName',
+        'timestamp': '1700000000',
+        'signature': 'signed',
+      },
+    );
+  }
 }
 
 class FakeAnalyses implements AnalysisRepository {

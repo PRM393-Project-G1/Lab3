@@ -22,6 +22,7 @@ Hợp đồng API và tên trường: [`docs/architecture.md`](../docs/architect
 | Docker | Chạy GROBID | Không cần nếu có key LLM |
 | Key LLM | Đọc danh sách reference khó và tìm reference bịa | Không có thì bước Fabrication check không chạy |
 | Tailscale | Điện thoại gọi được máy này | |
+| Tài khoản Cloudinary | Upload báo cáo PDF | Không có thì app chỉ lưu PDF trên máy. Mục "Upload báo cáo lên Cloudinary" |
 
 ## Cài đặt
 
@@ -80,6 +81,18 @@ Gửi push `Analysis done` thật cho mọi tài khoản đã đăng ký token, 
 ```bash
 .venv/Scripts/python -m orchestrator.push 1706.03762
 ```
+
+## Upload báo cáo lên Cloudinary
+
+Gói Spark không có Cloud Storage, nên app tạm upload báo cáo PDF lên Cloudinary. App không giữ secret: nó gọi `POST /api/uploads/signature`, service kiểm tra Firebase token rồi ký cho đúng `reports/{uid}/{fileName}`, với uid lấy từ token. App gửi file thẳng lên Cloudinary bằng chữ ký đó, nên mỗi user chỉ ghi được vào thư mục của mình.
+
+1. Tạo tài khoản Cloudinary miễn phí. Trong Settings → API Keys, lấy `Cloud name`, `API key` và `API secret`.
+2. Điền vào `.env`: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`. **Không commit.**
+3. Tài khoản miễn phí có thể chặn tải file PDF. Nếu link báo cáo trả lỗi 401, vào Settings → Security và cho phép giao file PDF.
+4. Chạy lại service. Thiếu một trong ba biến thì log có dòng `report uploads are off`, và app báo `Export failed` khi upload.
+5. Trên Firebase Console → Remote Config, đổi `enable_cloud_upload` thành `true` rồi Publish.
+
+Upload cần service đang chạy, vì mỗi lần upload phải xin chữ ký. Bài đã phân tích vẫn mở và lưu PDF trên máy được khi service tắt.
 
 ## Cài Saffron
 

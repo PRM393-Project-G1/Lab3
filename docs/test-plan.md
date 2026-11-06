@@ -61,7 +61,7 @@ Mỗi test gửi một chỉ dẫn qua `ArtemisClient`, yêu cầu agent kết t
 
 | Mục | Lý do | Thay thế |
 |---|---|---|
-| Upload lên Cloud Storage | Gói Spark không có bucket | Widget test với service giả |
+| Upload lên Cloudinary | Chưa viết test E2E; cần backend có `CLOUDINARY_*` và bật `enable_cloud_upload` | Unit test `CloudinaryStorageService`, chữ ký ở backend; widget test với service giả |
 | C-E1 xuất thất bại | Không gây lỗi ghi file được trên máy thật | Unit test và widget test |
 | A-E2 phân tích thất bại, A-E3 mất mạng giữa chừng | Phải điều khiển backend hoặc canh đúng thời điểm | Unit test `ProgressViewModel` |
 | B-E2 Unclassified, B3 reference bịa | Phụ thuộc dữ liệu thật của bài | Widget test; phiên khám phá |
