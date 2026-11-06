@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import '../firebase/analytics_service.dart';
 import '../firebase/auth_service.dart';
 import '../firebase/crashlytics_service.dart';
 import '../firebase/firestore_service.dart';
 import '../firebase/remote_config_service.dart';
 import '../firebase/storage_service.dart';
+import '../models/analysis.dart';
+import '../models/analysis_results.dart';
 import '../models/reference.dart';
 import '../services/analysis_repository.dart';
 import '../services/device_actions.dart';
@@ -54,9 +58,8 @@ class ExportViewModel extends BaseViewModel {
   String get fileLabel => '$fileName · $_sizeKb KB';
 
   Future<void> start() async {
-    _phase = ExportPhase.creating;
     _progress = 0;
-    notifyListeners();
+    _enter(ExportPhase.creating);
     try {
       final uid = _auth.currentUser?.uid;
       final results = await _analyses.getResults(analysisId);
@@ -64,48 +67,57 @@ class ExportViewModel extends BaseViewModel {
       if (uid == null || analysis == null) {
         throw StateError('Nothing to export');
       }
-      final bytes = await _report.buildReport(
+      final bytes = await _buildPdf(analysis, results);
+      _sizeKb = (bytes.length / 1024).ceil();
+      _path = await _files.save(uid: uid, fileName: fileName, bytes: bytes);
+      if (_remoteConfig.enableCloudUpload) {
+        _url = await _upload(uid, bytes);
+        _enter(ExportPhase.uploaded);
+      } else {
+        _enter(ExportPhase.saved);
+      }
+      await _analytics.logExportReport(analysisId, fileSizeKb: _sizeKb);
+    } catch (error, stack) {
+      _enter(ExportPhase.failed);
+      await _crashlytics.recordNonFatal(error, stack, reason: 'export_report');
+    }
+  }
+
+  /// Weak topics, then every reference with a problem, most severe first.
+  Future<Uint8List> _buildPdf(Analysis analysis, AnalysisResults results) =>
+      _report.buildReport(
         analysis: analysis,
         weakTopics: results.tree(_remoteConfig.weakTopicRule).weak,
         flagged: sortBySeverity(
           results.references.where((r) => r.status.isFlagged),
         ),
       );
-      _sizeKb = (bytes.length / 1024).ceil();
-      _path = await _files.save(uid: uid, fileName: fileName, bytes: bytes);
-      if (!_remoteConfig.enableCloudUpload) {
-        _phase = ExportPhase.saved;
+
+  /// Uploads to Cloud Storage, records the metadata and returns the link.
+  Future<String> _upload(String uid, Uint8List bytes) async {
+    _enter(ExportPhase.uploading);
+    final uploaded = await _storage.uploadReport(
+      uid: uid,
+      fileName: fileName,
+      bytes: bytes,
+      onProgress: (value) {
+        _progress = value;
         notifyListeners();
-        await _analytics.logExportReport(analysisId, fileSizeKb: _sizeKb);
-        return;
-      }
-      _phase = ExportPhase.uploading;
-      notifyListeners();
-      final uploaded = await _storage.uploadReport(
-        uid: uid,
-        fileName: fileName,
-        bytes: bytes,
-        onProgress: (value) {
-          _progress = value;
-          notifyListeners();
-        },
-      );
-      await _firestore.addReport(
-        uid: uid,
-        analysisId: analysisId,
-        storagePath: uploaded.path,
-        downloadUrl: uploaded.url,
-        sizeKb: _sizeKb,
-      );
-      _url = uploaded.url;
-      _phase = ExportPhase.uploaded;
-      notifyListeners();
-      await _analytics.logExportReport(analysisId, fileSizeKb: _sizeKb);
-    } catch (error, stack) {
-      _phase = ExportPhase.failed;
-      notifyListeners();
-      await _crashlytics.recordNonFatal(error, stack, reason: 'export_report');
-    }
+      },
+    );
+    await _firestore.addReport(
+      uid: uid,
+      analysisId: analysisId,
+      storagePath: uploaded.path,
+      downloadUrl: uploaded.url,
+      sizeKb: _sizeKb,
+    );
+    return uploaded.url;
+  }
+
+  void _enter(ExportPhase phase) {
+    _phase = phase;
+    notifyListeners();
   }
 
   Future<void> copyLink() async {
