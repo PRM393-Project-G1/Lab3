@@ -125,7 +125,7 @@ class FakeAnalytics implements AnalyticsService {
       events.add('export_report');
   @override
   Future<void> logNotificationOpen(String type) async =>
-      events.add('notification_open:$type');
+      events.add('open_notification:$type');
 }
 
 class FakeCrashlytics implements CrashlyticsService {

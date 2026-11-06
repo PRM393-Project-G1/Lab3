@@ -33,7 +33,7 @@ Trạng thái: `Todo` · `Doing` · `Done`.
 | A. Phân tích bài báo | Happy | 2 → 3 → 4 | `search`, `view_analysis` | TC-16 | Doing |
 | | A1 đã phân tích | 2 → 4 | `search` (`cache_hit`) | TC-03 | Doing |
 | | A2 share từ trình duyệt | Chrome → 2 | — | TC-05 | Doing |
-| | A3 chạy nền + push | 3 → push → 4 | `notification_open` | TC-10 | Doing |
+| | A3 chạy nền + push | 3 → push → 4 | `open_notification` | TC-10 | Doing |
 | | A-E1 sai định dạng | 2 | — | TC-04 | Doing |
 | | A-E2 thất bại | 3 | — | — | Doing |
 | | A-E3 offline | 3 | — | — | Doing |

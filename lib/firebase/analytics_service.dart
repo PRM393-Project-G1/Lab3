@@ -92,9 +92,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
         parameters: {'analysis_id': analysisId, 'file_size_kb': fileSizeKb},
       );
 
+  // Not `notification_open`: FCM logs that one itself, so the SDK rejects it.
   @override
   Future<void> logNotificationOpen(String type) => _analytics.logEvent(
-    name: 'notification_open',
+    name: 'open_notification',
     parameters: {'notification_type': type},
   );
 }
