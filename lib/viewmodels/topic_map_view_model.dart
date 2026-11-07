@@ -32,6 +32,9 @@ class TopicMapViewModel extends BaseViewModel {
   /// Levels below this one are opened on the Topic screen.
   static const maxInlineDepth = 3;
 
+  /// Bars in the Key topics chart.
+  static const maxKeyTopics = 6;
+
   final String analysisId;
   final AnalysisRepository _analyses;
   final RemoteConfigService _remoteConfig;
@@ -65,6 +68,20 @@ class TopicMapViewModel extends BaseViewModel {
 
   /// Whole percent used by the footer rule, from Remote Config.
   int get weakPercent => (_remoteConfig.weakTopicThreshold * 100).round();
+
+  /// The topics Saffron scores highest, for the chart above the tree. Empty for
+  /// analyses made before the scores were saved, which hides the chart.
+  List<TopicNode> get keyTopics {
+    final tree = switch (_state) {
+      Data(:final value) => value,
+      _ => null,
+    };
+    if (tree == null) return const [];
+    final scored =
+        tree.byId.values.where((node) => node.topic.importance > 0).toList()
+          ..sort((a, b) => b.topic.importance.compareTo(a.topic.importance));
+    return scored.take(maxKeyTopics).toList();
+  }
 
   List<TopicRow> get rows {
     final tree = switch (_state) {

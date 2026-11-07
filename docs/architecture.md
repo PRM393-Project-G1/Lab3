@@ -152,9 +152,11 @@ sequenceDiagram
 | `users/{uid}/library/{arxivId}` | `customTitle`, `addedAt`, `lastOpenedAt` | App |
 | `users/{uid}/reports/{id}` | `analysisId`, `storagePath`, `downloadUrl`, `sizeKb`, `createdAt`. Chỉ ghi khi `enable_cloud_upload` bật | App |
 | `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId`, `createdAt`, `read` | Backend; app chỉ đổi `read` |
-| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `finishedAt`, `error` | Backend |
+| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `authorLinks[]`, `finishedAt`, `error` | Backend |
 | `analyses/{id}/references/{refId}` | `index`, `title`, `authors[]`, `year`, `venue`, `url`, `status`, `issues[]`, `hallucination`, `textSource`, `topicIds[]` | Backend |
-| `analyses/{id}/topics/{topicId}` | `term`, `parentId`, `depth`, `score`, `refIds[]`, `counts` | Backend |
+| `analyses/{id}/topics/{topicId}` | `term`, `parentId`, `depth`, `score`, `refIds[]`, `counts`, `importance`, `occurrences`, `related[]`, `authors[]` | Backend |
+
+Bốn trường cuối của `topics` và `authorLinks` lấy từ các file khác của Saffron (`terms.json`, `term-sim.json`, `author-terms.json`, `author-sim.json`). Phân tích cũ không có chúng; app coi như rỗng và ẩn phần tương ứng.
 
 **Các trường app đọc mà backend phải ghi đúng tên:**
 
@@ -166,6 +168,10 @@ sequenceDiagram
 | `references.status` | `verified`, `warning`, `error`, `hallucinated`, `unverified`; giá trị lạ được coi là `unverified` | Mọi nơi hiện trạng thái |
 | `issues[]` | `type`, `message`, `cited`, `actual` | Bảng Cited / Actual, `Copy fix` |
 | `hallucination` | `explanation`, `closestMatchTitle`, `closestMatchUrl` | Dialog `Likely fabricated` |
+| `topics.importance`, `topics.occurrences` | Điểm của Saffron cho thuật ngữ (chỉ thứ tự có nghĩa, thang đo đổi theo bài) và số lần các bài được trích nhắc tới nó | Biểu đồ `Key topics`, dòng `31 mentions · #2 of 35` |
+| `topics.related[]` | `topicId`, `term`, `similarity`; tối đa 5, giống nhất trước | Chip `Related topics` |
+| `topics.authors[]` | `name`, `score`; tối đa 5, điểm cao nhất trước | Danh sách `Key authors` |
+| `analyses.authorLinks[]` | `a`, `b`, `similarity`: 20 cặp tác giả viết về cùng chủ đề nhiều nhất | Chưa dùng |
 | Dữ liệu push FCM | `analysisId` trong `data` | Chạm push mở Overview |
 | `fcmTokens[]` | Bỏ qua và xoá token không còn hợp lệ | App xoá token của máy khi đăng xuất |
 

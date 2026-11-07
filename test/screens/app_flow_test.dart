@@ -112,8 +112,23 @@ void main() {
           term: 'Attention',
           parentId: 'root',
           refIds: ['h1', 'h2', 'e1'],
+          importance: 1.2,
+          occurrences: 31,
+          related: [RelatedTopic(topicId: 'fine', term: 'Optimizers')],
+          authors: [
+            TopicAuthor(name: 'Ashish Vaswani'),
+            TopicAuthor(name: 'Noam Shazeer'),
+          ],
         ),
-        Topic(id: 'fine', term: 'Optimizers', parentId: 'root', refIds: ['v1']),
+        Topic(
+          id: 'fine',
+          term: 'Optimizers',
+          parentId: 'root',
+          refIds: ['v1'],
+          importance: 0.6,
+          occurrences: 12,
+          related: [RelatedTopic(topicId: 'weak', term: 'Attention')],
+        ),
       ];
   });
 
@@ -423,6 +438,57 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(device.opened, ['https://arxiv.org/abs/1409.3215']);
+    });
+
+    testWidgets('key topics, related topics and authors from Saffron', (
+      tester,
+    ) async {
+      final router = await pumpApp(tester);
+      router.go('/analyses/$id/topics');
+      await tester.pumpAndSettle();
+      expect(find.text('Key topics'), findsOneWidget);
+      expect(find.text('1.20'), findsOneWidget);
+      expect(find.text('0.60'), findsOneWidget);
+
+      await tester.tap(
+        find.text('Attention · 31 mentions', findRichText: true),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('31 mentions · #1 of 2 by Saffron score'),
+        findsOneWidget,
+      );
+      expect(find.text('RELATED TOPICS'), findsOneWidget);
+      expect(find.text('KEY AUTHORS'), findsOneWidget);
+      expect(find.text('Ashish Vaswani'), findsOneWidget);
+      expect(find.text('Noam Shazeer'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ActionChip, 'Optimizers'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('12 mentions · #2 of 2 by Saffron score'),
+        findsOneWidget,
+      );
+      expect(find.text('KEY AUTHORS'), findsNothing);
+      expect(find.widgetWithText(ActionChip, 'Attention'), findsOneWidget);
+    });
+
+    testWidgets('topics without Saffron scores hide the extras', (
+      tester,
+    ) async {
+      analyses.topics[id] = const [
+        Topic(id: 'weak', term: 'Attention', refIds: ['h1', 'h2', 'e1']),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/analyses/$id/topics');
+      await tester.pumpAndSettle();
+      expect(find.text('Key topics'), findsNothing);
+
+      router.go('/analyses/$id/topics/weak');
+      await tester.pumpAndSettle();
+      expect(find.text('RELATED TOPICS'), findsNothing);
+      expect(find.text('KEY AUTHORS'), findsNothing);
+      expect(find.textContaining('Saffron score'), findsNothing);
     });
 
     testWidgets('a fabricated reference opens its dialog by itself', (

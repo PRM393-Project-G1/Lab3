@@ -110,4 +110,5 @@ Thầy đã duyệt đổi sang sản phẩm RefCheck + Saffron, và nhóm làm 
 | Export | `Upload failed` | `Export failed` | Trên Spark, lỗi đến từ khâu tạo hoặc lưu PDF, không phải upload | Có |
 | Export | Nút `Done`, `Cancel`, `×` trong sheet | Kéo xuống hoặc chạm ngoài sheet để đóng | Cùng tác dụng, ít chữ hơn | Không cần |
 | Sign-in | Logo Google, logo Realtron | Icon Material thay thế | Chưa có file ảnh; cần thay trước khi nộp | Không cần |
+| Topics, Topic | Chỉ có cây chủ đề và danh sách reference | Topics có thẻ `Key topics` (6 chủ đề điểm Saffron cao nhất, chạm để mở). Topic có dòng `31 mentions · #2 of 35 by Saffron score`, chip `Related topics` và danh sách `Key authors`. Tất cả ẩn khi phân tích chưa có dữ liệu này | Dùng phần đầu ra của Saffron trước đây bị bỏ (điểm, chủ đề liên quan, tác giả) | Chưa |
 | Chữ mới | Không có trong `user-flow.md` | `Sign-in failed`, `Couldn't start`, `N with errors`, `Couldn't save`, `Couldn't delete`, `Error logged`, `Setup needed`, `No app can open PDF`, nút `View` trên snackbar push | Trường hợp lỗi thật mà thiết kế chưa có | Chưa |

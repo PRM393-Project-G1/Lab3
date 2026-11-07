@@ -8,12 +8,28 @@ import 'base_view_model.dart';
 import 'view_state.dart';
 
 class TopicDetailData {
-  const TopicDetailData(this.node, this.references);
+  const TopicDetailData(
+    this.node,
+    this.references, {
+    this.related = const [],
+    this.rank,
+    this.rankedCount = 0,
+  });
 
   final TopicNode node;
 
   /// Most severe first.
   final List<Reference> references;
+
+  /// Topics Saffron finds in the same references that are still in the tree,
+  /// most similar first.
+  final List<TopicNode> related;
+
+  /// 1 for the topic Saffron scores highest in this paper; null when unscored.
+  final int? rank;
+
+  /// How many topics have a score, for "#3 of 35".
+  final int rankedCount;
 }
 
 class TopicDetailViewModel extends BaseViewModel {
@@ -70,10 +86,21 @@ class TopicDetailViewModel extends BaseViewModel {
         notifyListeners();
         return;
       }
+      final scored = topics.where((t) => t.importance > 0).toList();
+      final above = scored
+          .where((t) => t.importance > node.topic.importance)
+          .length;
       _state = Data(
         TopicDetailData(
           node,
           sortBySeverity(references.where((r) => node.refIds.contains(r.id))),
+          related: [
+            for (final link in node.topic.related)
+              if (tree.byId[link.topicId] case final other?)
+                if (other != node) other,
+          ],
+          rank: node.topic.importance > 0 ? above + 1 : null,
+          rankedCount: scored.length,
         ),
       );
       notifyListeners();
