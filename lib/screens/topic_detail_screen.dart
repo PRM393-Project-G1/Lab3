@@ -62,6 +62,10 @@ class _Content extends StatelessWidget {
             if (node.isWeak) const WeakTag(),
           ],
         ),
+        if (_stats(data) case final stats?) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(stats, style: context.text.bodyMedium),
+        ],
         const SizedBox(height: AppSpacing.md),
         StatusBar(node.counts, showLegend: true),
         if (node.children.isNotEmpty) ...[
@@ -72,6 +76,40 @@ class _Content extends StatelessWidget {
               counts: child.counts,
               isWeak: child.isWeak,
               onTap: () => context.push(AppRoutes.topic(id, child.id)),
+            ),
+        ],
+        if (data.related.isNotEmpty) ...[
+          const SectionLabel('Related topics'),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final other in data.related)
+                ActionChip(
+                  label: Text(other.term),
+                  onPressed: () => context.push(AppRoutes.topic(id, other.id)),
+                ),
+            ],
+          ),
+        ],
+        if (node.topic.authors.isNotEmpty) ...[
+          const SectionLabel('Key authors'),
+          for (final author in node.topic.authors)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: AppSizes.iconSm,
+                    color: context.muted,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(author.name, style: context.text.bodyLarge),
+                  ),
+                ],
+              ),
             ),
         ],
         const SizedBox(height: AppSpacing.md),
@@ -115,4 +153,14 @@ class _Content extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "31 mentions · #2 of 35 by Saffron score", or null for older analyses.
+String? _stats(TopicDetailData data) {
+  final rank = data.rank;
+  final parts = [
+    ?data.node.topic.mentions,
+    if (rank != null) '#$rank of ${data.rankedCount} by Saffron score',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }

@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'firebase/ai_service.dart';
 import 'firebase/analytics_service.dart';
 import 'firebase/auth_service.dart';
 import 'firebase/crashlytics_service.dart';
@@ -29,6 +32,7 @@ import 'viewmodels/auth_view_model.dart';
 /// Call after `Firebase.initializeApp`.
 Future<Widget> provideDependencies({required Widget child}) async {
   final crashlytics = FirebaseCrashlyticsService()..installHandlers();
+  await _activateAppCheck(crashlytics);
   FirebaseMessagingService.registerBackgroundHandler();
   final prefs = await SharedPreferences.getInstance();
 
@@ -65,6 +69,7 @@ Future<Widget> provideDependencies({required Widget child}) async {
       Provider<ReportFiles>(create: (_) => DeviceReportFiles()),
       Provider<DeviceActions>(create: (_) => SystemDeviceActions()),
       Provider<ShareIntentService>(create: (_) => SystemShareIntentService()),
+      Provider<AiService>(create: (_) => FirebaseAiService()),
       ChangeNotifierProvider(
         create: (_) => AuthViewModel(
           auth: auth,
@@ -77,4 +82,25 @@ Future<Widget> provideDependencies({required Widget child}) async {
     ],
     child: child,
   );
+}
+
+/// App Check proves to Firebase AI Logic that requests come from this app.
+///
+/// Play Integrity only passes on a real device with Google Play, so emulators
+/// such as BlueStacks use the debug provider: build with
+/// `--dart-define=APP_CHECK_DEBUG=true` and register the token printed in
+/// logcat, or pass a registered one with `--dart-define=APP_CHECK_DEBUG_TOKEN=`.
+Future<void> _activateAppCheck(CrashlyticsService crashlytics) async {
+  const token = String.fromEnvironment('APP_CHECK_DEBUG_TOKEN');
+  const debug = bool.fromEnvironment('APP_CHECK_DEBUG') || token != '';
+  try {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode || debug
+          ? AndroidDebugProvider(debugToken: token == '' ? null : token)
+          : const AndroidPlayIntegrityProvider(),
+    );
+  } catch (error, stack) {
+    // Only the knowledge graph's Gemini relations need App Check.
+    unawaited(crashlytics.recordNonFatal(error, stack, reason: 'app_check'));
+  }
 }

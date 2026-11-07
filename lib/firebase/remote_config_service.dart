@@ -13,6 +13,7 @@ abstract final class RemoteConfigKeys {
   static const maxRecentChecks = 'max_recent_checks';
   static const enableReportExport = 'enable_report_export';
   static const enableCloudUpload = 'enable_cloud_upload';
+  static const geminiModel = 'gemini_model';
 }
 
 /// Values changed from the Firebase Console without a new build.
@@ -25,6 +26,9 @@ abstract class RemoteConfigService extends ChangeNotifier {
   /// Uploads the report to Cloudinary when on. Off by default: the backend
   /// needs its CLOUDINARY_* settings first.
   bool get enableCloudUpload;
+
+  /// Gemini model that names the relations on the knowledge graph.
+  String get geminiModel;
 }
 
 /// Derived from the parameters, so every implementation and test double agrees.
@@ -40,6 +44,7 @@ extension RemoteConfigValues on RemoteConfigService {
     (RemoteConfigKeys.maxRecentChecks, maxRecentChecks),
     (RemoteConfigKeys.enableReportExport, enableReportExport),
     (RemoteConfigKeys.enableCloudUpload, enableCloudUpload),
+    (RemoteConfigKeys.geminiModel, geminiModel),
   ];
 }
 
@@ -57,6 +62,7 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
     RemoteConfigKeys.maxRecentChecks: 10,
     RemoteConfigKeys.enableReportExport: true,
     RemoteConfigKeys.enableCloudUpload: false,
+    RemoteConfigKeys.geminiModel: 'gemini-3.5-flash-lite',
   };
 
   Future<void> init() async {
@@ -103,4 +109,7 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
   @override
   bool get enableCloudUpload =>
       _config.getBool(RemoteConfigKeys.enableCloudUpload);
+
+  @override
+  String get geminiModel => _config.getString(RemoteConfigKeys.geminiModel);
 }

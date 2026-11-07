@@ -253,6 +253,39 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('status bar segments fill the bar, sized by count', (
+    tester,
+  ) async {
+    Future<List<Size>> segments(StatusCounts counts) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(useGoogleFonts: false),
+          home: Scaffold(
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [SizedBox(width: 200, child: StatusBar(counts))],
+            ),
+          ),
+        ),
+      );
+      return [
+        for (final element
+            in find
+                .descendant(
+                  of: find.byType(StatusBar),
+                  matching: find.byType(ColoredBox),
+                )
+                .evaluate())
+          tester.getSize(find.byWidget(element.widget)),
+      ];
+    }
+
+    final sizes = await segments(const StatusCounts(error: 1, verified: 3));
+    expect(sizes, const [Size(50, 8), Size(150, 8)]);
+
+    expect(await segments(const StatusCounts()), const [Size(200, 8)]);
+  });
+
   test('StatusCounts adds up', () {
     expect(_counts.total, 41);
     expect(_counts.of(RefStatus.hallucinated), 2);

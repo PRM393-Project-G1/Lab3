@@ -110,6 +110,82 @@ class StatusColors extends ThemeExtension<StatusColors> {
   }
 }
 
+/// Colours of the knowledge graph.
+class GraphColors extends ThemeExtension<GraphColors> {
+  const GraphColors({
+    required this.topic,
+    required this.author,
+    required this.edge,
+    required this.isA,
+    required this.partOf,
+    required this.sameAs,
+    required this.weak,
+    required this.selected,
+  });
+
+  static const standard = GraphColors(
+    topic: AppPalette.graphTopic,
+    author: AppPalette.graphAuthor,
+    edge: AppPalette.graphEdge,
+    isA: AppPalette.graphIsA,
+    partOf: AppPalette.graphPartOf,
+    sameAs: AppPalette.graphSameAs,
+    weak: AppPalette.error,
+    selected: AppPalette.textPrimary,
+  );
+
+  final Color topic;
+  final Color author;
+
+  /// Subtopic, related and author links.
+  final Color edge;
+  final Color isA;
+  final Color partOf;
+  final Color sameAs;
+
+  /// Ring around a weak topic.
+  final Color weak;
+
+  /// Ring around the selected node.
+  final Color selected;
+
+  @override
+  GraphColors copyWith({
+    Color? topic,
+    Color? author,
+    Color? edge,
+    Color? isA,
+    Color? partOf,
+    Color? sameAs,
+    Color? weak,
+    Color? selected,
+  }) => GraphColors(
+    topic: topic ?? this.topic,
+    author: author ?? this.author,
+    edge: edge ?? this.edge,
+    isA: isA ?? this.isA,
+    partOf: partOf ?? this.partOf,
+    sameAs: sameAs ?? this.sameAs,
+    weak: weak ?? this.weak,
+    selected: selected ?? this.selected,
+  );
+
+  @override
+  GraphColors lerp(ThemeExtension<GraphColors>? other, double t) {
+    if (other is! GraphColors) return this;
+    return GraphColors(
+      topic: Color.lerp(topic, other.topic, t)!,
+      author: Color.lerp(author, other.author, t)!,
+      edge: Color.lerp(edge, other.edge, t)!,
+      isA: Color.lerp(isA, other.isA, t)!,
+      partOf: Color.lerp(partOf, other.partOf, t)!,
+      sameAs: Color.lerp(sameAs, other.sameAs, t)!,
+      weak: Color.lerp(weak, other.weak, t)!,
+      selected: Color.lerp(selected, other.selected, t)!,
+    );
+  }
+}
+
 /// Text tokens that have no slot in [TextTheme].
 class AppTextExtras extends ThemeExtension<AppTextExtras> {
   const AppTextExtras({required this.mono, required this.muted});
@@ -157,4 +233,6 @@ extension AppThemeContext on BuildContext {
       Theme.of(this).extension<StatusColors>()!.of(status);
   TextStyle get mono => Theme.of(this).extension<AppTextExtras>()!.mono;
   Color get muted => Theme.of(this).extension<AppTextExtras>()!.muted;
+  GraphColors get graph =>
+      Theme.of(this).extension<GraphColors>() ?? GraphColors.standard;
 }

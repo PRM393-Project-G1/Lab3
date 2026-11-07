@@ -38,6 +38,12 @@ class TestFinishedJob:
         assert [topic["term"] for topic in self.store.topics] == ["attention"]
         assert self.store.references[0]["topicIds"] == [self.store.topics[0]["id"]]
 
+    def test_saves_what_saffron_adds_to_topics(self):
+        topic = self.store.topics[0]
+        assert (topic["importance"], topic["occurrences"]) == (0.8, 3)
+        assert topic["authors"] == [{"name": "A. Vaswani", "score": 0.5}]
+        assert self.doc["authorLinks"] == [{"a": "A. Vaswani", "b": "N. Shazeer", "similarity": 0.9}]
+
     def test_notifies_who_asked(self):
         assert self.store.notifications == [
             (UID, ID, "Analysis done", "Attention Is All You Need · 1 flagged")

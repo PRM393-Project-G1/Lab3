@@ -131,6 +131,7 @@ ThemeData buildAppTheme({bool useGoogleFonts = true}) {
     materialTapTargetSize: MaterialTapTargetSize.padded,
     extensions: [
       StatusColors.standard,
+      GraphColors.standard,
       AppTextExtras(
         mono: mono(
           const TextStyle(

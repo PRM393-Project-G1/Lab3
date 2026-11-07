@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:realtron/firebase/ai_service.dart';
 import 'package:realtron/firebase/analytics_service.dart';
 import 'package:realtron/firebase/auth_service.dart';
 import 'package:realtron/firebase/crashlytics_service.dart';
@@ -15,6 +16,7 @@ import 'package:realtron/models/library_entry.dart';
 import 'package:realtron/models/ref_status.dart';
 import 'package:realtron/models/reference.dart';
 import 'package:realtron/models/topic.dart';
+import 'package:realtron/models/topic_relation.dart';
 import 'package:realtron/models/topic_tree.dart';
 import 'package:realtron/services/analysis_repository.dart';
 import 'package:realtron/services/api_client.dart';
@@ -147,6 +149,27 @@ class FakeCrashlytics implements CrashlyticsService {
   void testCrash() => crashed = true;
 }
 
+class FakeAi implements AiService {
+  List<TopicRelation> relations = const [];
+  Object? error;
+
+  /// Completes the answer only when set and completed by the test.
+  Completer<void>? gate;
+  final calls = <({List<String> terms, String model, String? paperTitle})>[];
+
+  @override
+  Future<List<TopicRelation>> relateTerms(
+    List<String> terms, {
+    required String model,
+    String? paperTitle,
+  }) async {
+    calls.add((terms: terms, model: model, paperTitle: paperTitle));
+    await gate?.future;
+    if (error != null) throw error!;
+    return relations;
+  }
+}
+
 class FakeRemoteConfig extends ChangeNotifier implements RemoteConfigService {
   @override
   double weakTopicThreshold = 0.5;
@@ -158,6 +181,8 @@ class FakeRemoteConfig extends ChangeNotifier implements RemoteConfigService {
   bool enableReportExport = true;
   @override
   bool enableCloudUpload = false;
+  @override
+  String geminiModel = 'gemini-test';
 
   void change(VoidCallback update) {
     update();

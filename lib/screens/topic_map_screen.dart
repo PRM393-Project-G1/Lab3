@@ -8,8 +8,10 @@ import '../theme/app_tokens.dart';
 import '../viewmodels/reference_list_view_model.dart';
 import '../viewmodels/topic_map_view_model.dart';
 import '../viewmodels/view_state.dart';
+import '../widgets/app_card.dart';
 import '../widgets/app_filter_chip.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/ranked_bars.dart';
 import '../widgets/skeleton_list.dart';
 import '../widgets/state_view.dart';
 import '../widgets/topic_tree_node.dart';
@@ -21,7 +23,18 @@ class TopicMapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<TopicMapViewModel>();
     return Scaffold(
-      appBar: AppTopBar(title: 'Topics', subtitle: vm.paperTitle),
+      appBar: AppTopBar(
+        title: 'Topics',
+        subtitle: vm.paperTitle,
+        actions: [
+          if (vm.state is Data)
+            IconButton(
+              tooltip: 'Knowledge graph',
+              icon: const Icon(Icons.hub_outlined),
+              onPressed: () => context.push(AppRoutes.graph(vm.analysisId)),
+            ),
+        ],
+      ),
       body: switch (vm.state) {
         Loading() => const SkeletonList(),
         Failure() => StateView.error(onAction: vm.load),
@@ -43,10 +56,37 @@ class _Tree extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = vm.rows;
+    final keyTopics = vm.keyTopics;
     final id = vm.analysisId;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.page),
       children: [
+        if (keyTopics.isNotEmpty) ...[
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Key topics', style: context.text.titleMedium),
+                Text(
+                  "Ranked by Saffron's term score",
+                  style: context.text.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                RankedBars([
+                  for (final node in keyTopics)
+                    RankedBar(
+                      label: node.term,
+                      value: node.topic.importance,
+                      valueLabel: node.topic.importance.toStringAsFixed(2),
+                      caption: node.topic.mentions,
+                      onTap: () => context.push(AppRoutes.topic(id, node.id)),
+                    ),
+                ]),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         Wrap(
           spacing: AppSpacing.sm,
           children: [

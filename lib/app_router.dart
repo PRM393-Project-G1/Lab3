@@ -7,6 +7,7 @@ import 'screens/analyze_screen.dart';
 import 'screens/connect_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_shell.dart';
+import 'screens/knowledge_graph_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/overview_screen.dart';
 import 'screens/profile_screen.dart';
@@ -22,6 +23,7 @@ import 'viewmodels/analyze_view_model.dart';
 import 'viewmodels/auth_view_model.dart';
 import 'viewmodels/connect_view_model.dart';
 import 'viewmodels/history_view_model.dart';
+import 'viewmodels/knowledge_graph_view_model.dart';
 import 'viewmodels/notifications_view_model.dart';
 import 'viewmodels/overview_view_model.dart';
 import 'viewmodels/profile_view_model.dart';
@@ -200,6 +202,19 @@ GoRouter buildRouter({
                     ),
                   ),
                 ],
+              ),
+              GoRoute(
+                path: 'graph',
+                builder: (_, state) => ChangeNotifierProvider(
+                  create: (c) => KnowledgeGraphViewModel(
+                    analyses: c.read(),
+                    remoteConfig: c.read(),
+                    ai: c.read(),
+                    crashlytics: c.read(),
+                    analysisId: state.pathParameters['id']!,
+                  ),
+                  child: const KnowledgeGraphScreen(),
+                ),
               ),
               GoRoute(
                 path: 'references',

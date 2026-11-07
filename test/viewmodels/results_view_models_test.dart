@@ -195,6 +195,27 @@ void main() {
       expect(vm.weakPercent, 35);
     });
 
+    test('key topics are the highest scored, none without scores', () async {
+      final vm = build();
+      await pumpEventQueue();
+      expect(vm.keyTopics, isEmpty);
+
+      analyses.topics[id] = [
+        for (var i = 0; i < TopicMapViewModel.maxKeyTopics + 2; i++)
+          Topic(
+            id: 't$i',
+            term: '$i',
+            refIds: const ['v1'],
+            importance: i / 10,
+          ),
+      ];
+      await vm.load();
+
+      expect(vm.keyTopics, hasLength(TopicMapViewModel.maxKeyTopics));
+      expect(vm.keyTopics.first.id, 't${TopicMapViewModel.maxKeyTopics + 1}');
+      expect(vm.keyTopics.map((n) => n.id), isNot(contains('t0')));
+    });
+
     test('levels below the limit open on their own screen', () async {
       analyses.topics[id] = const [
         Topic(id: 'l0', term: '0'),
@@ -241,6 +262,49 @@ void main() {
       final vm = build('root');
       await pumpEventQueue();
       expect(vm.visibleReferences, hasLength(3));
+    });
+
+    test('skips related topics no longer in the tree, and ranks', () async {
+      analyses.topics[id] = const [
+        Topic(id: 'root', term: 'Sequence models', importance: 0.2),
+        Topic(
+          id: 'weak',
+          term: 'Attention',
+          parentId: 'root',
+          refIds: ['h1', 'e1', 'v1'],
+          importance: 0.9,
+          occurrences: 31,
+          related: [
+            RelatedTopic(topicId: 'gone', term: 'Dropped'),
+            RelatedTopic(topicId: 'fine', term: 'Optimizers'),
+            RelatedTopic(topicId: 'weak', term: 'Attention'),
+          ],
+        ),
+        Topic(
+          id: 'fine',
+          term: 'Optimizers',
+          parentId: 'root',
+          refIds: ['v1'],
+          importance: 1.4,
+        ),
+      ];
+      final vm = build('weak');
+      await pumpEventQueue();
+
+      final data = (vm.state as Data<TopicDetailData>).value;
+      expect(data.related.map((n) => n.id), ['fine']);
+      expect(data.rank, 2);
+      expect(data.rankedCount, 3);
+    });
+
+    test('an unscored topic has no rank', () async {
+      final vm = build('weak');
+      await pumpEventQueue();
+
+      final data = (vm.state as Data<TopicDetailData>).value;
+      expect(data.rank, isNull);
+      expect(data.rankedCount, 0);
+      expect(data.related, isEmpty);
     });
 
     test('an unknown topic is a failure', () async {

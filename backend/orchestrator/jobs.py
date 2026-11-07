@@ -142,8 +142,15 @@ class Pipeline:
             reference["title"] = document["name"]
 
         progress.report("topics")
-        doc_terms, taxonomy = await steps.extract_topics(analysis_id, documents)
-        topics = merge.build_topics(references, doc_terms, taxonomy)
+        saffron = await steps.extract_topics(analysis_id, documents)
+        topics = merge.build_topics(
+            references,
+            saffron.doc_terms,
+            saffron.taxonomy,
+            terms=saffron.terms,
+            term_sim=saffron.term_sim,
+            author_terms=saffron.author_terms,
+        )
         await asyncio.to_thread(store.replace_results, analysis_id, references, topics)
 
         summary = merge.summarize(references)
@@ -156,6 +163,7 @@ class Pipeline:
                 "status": DONE,
                 "paperTitle": title,
                 "summary": summary,
+                "authorLinks": merge.author_links(saffron.author_sim),
                 "error": None,
                 "progress": {"stage": "topics", "percent": 100, "processedRefs": len(references)},
             },

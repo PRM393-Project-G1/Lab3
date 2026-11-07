@@ -42,6 +42,15 @@ abstract final class AppPalette {
   static const unverified = Color(0xFF475569);
   static const unverifiedContainer = Color(0xFFF8FAFC);
   static const unverifiedBorder = Color(0xFFE2E8F0);
+
+  // Knowledge graph. Topic, author, is-a and part-of pass the colour-blind
+  // checks as a set on the background; every relation also has its own line.
+  static const graphTopic = Color(0xFF3355D1);
+  static const graphAuthor = Color(0xFF0B9A8D);
+  static const graphEdge = Color(0xFFA3B1C6);
+  static const graphIsA = Color(0xFFD9541E);
+  static const graphPartOf = Color(0xFFA8338F);
+  static const graphSameAs = Color(0xFF334155);
 }
 
 abstract final class AppSpacing {

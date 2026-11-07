@@ -32,6 +32,8 @@ abstract final class AppRoutes {
 
   static String topic(String id, String topicId) => '${topics(id)}/$topicId';
 
+  static String graph(String id) => '${overview(id)}/graph';
+
   /// [filter] is a key that `ReferenceFilter.parse` reads.
   static String references(String id, {String? filter}) => filter == null
       ? '${overview(id)}/references'

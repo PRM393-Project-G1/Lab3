@@ -12,6 +12,7 @@ import sys
 import time
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,8 @@ _ATOM = {"atom": "http://www.w3.org/2005/Atom"}
 _ARXIV_URL = re.compile(r"arxiv\.org/(?:abs|pdf)/(?:arxiv:)?(\d{4}\.\d{4,5})", re.IGNORECASE)
 _REFERENCES_HEADING = re.compile(r"^\s*(?:references|bibliography)\s*$", re.IGNORECASE | re.MULTILINE)
 _CITATION_NOISE = re.compile(r"\b[\w'-]+(?:\s+and\s+[\w'-]+)?\s+et\s+al\.?|\[\s*\d+(?:\s*[,-]\s*\d+)*\s*\]")
+_ET_AL = re.compile(r"\s*,?\s+et\.?\s*al\.?$", re.IGNORECASE)
+_NOT_A_NAME = re.compile(r"^(?:and\s+)?(?:et\.?\s*al\.?|others|anonymous)$", re.IGNORECASE)
 
 # PDFs from arXiv make it warn about every embedded font.
 logging.getLogger("pypdf").setLevel(logging.ERROR)
@@ -38,6 +41,18 @@ logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 class StepError(Exception):
     """A failure whose message is short enough to show on the phone."""
+
+
+@dataclass(frozen=True)
+class SaffronOutput:
+    """The files of one Saffron run that the results use."""
+
+    doc_terms: list[dict[str, Any]]
+    taxonomy: dict[str, Any]
+    terms: list[dict[str, Any]] = field(default_factory=list)
+    term_sim: list[dict[str, Any]] = field(default_factory=list)
+    author_terms: list[dict[str, Any]] = field(default_factory=list)
+    author_sim: list[dict[str, Any]] = field(default_factory=list)
 
 
 def arxiv_id_of(raw: Mapping[str, Any]) -> str | None:
@@ -52,6 +67,55 @@ def clean_fulltext(text: str) -> str:
     headings = list(_REFERENCES_HEADING.finditer(text))
     body = text[: headings[-1].start()] if headings else text
     return _CITATION_NOISE.sub(" ", body)[:MAX_TEXT_CHARS]
+
+
+def _author_name(name: str) -> str | None:
+    """One spelling of a cited author, "Given Surname", or None for "et al." and the like."""
+    name = _ET_AL.sub("", " ".join(name.split())).strip(" ,")
+    if "," in name:
+        surname, given = name.split(",", 1)
+        name = f"{given.strip()} {surname.strip()}".strip()
+    if not name or _NOT_A_NAME.match(name) or not any(c.isalpha() for c in name):
+        return None
+    return name
+
+
+def _author_key(name: str) -> tuple[str, str]:
+    """Surname and first initial, so "A. Vaswani" and "Ashish Vaswani" match."""
+    words = [word for word in re.split(r"[\s.]+", name) if any(c.isalpha() for c in word)]
+    return words[-1].lower(), words[0][0].lower() if len(words) > 1 else ""
+
+
+def canonical_authors(references: list[Mapping[str, Any]]) -> list[list[str]]:
+    """The authors of each reference, one spelling per person across the paper.
+
+    Saffron treats "A. Vaswani" and "Ashish Vaswani" as two people, so each person
+    takes their longest spelling. A bare surname joins the only person who has it.
+    """
+    spellings: dict[tuple[str, str], str] = {}
+    keyed: list[list[tuple[str, str]]] = []
+    for raw in references:
+        keys = []
+        for author in raw.get("authors") or []:
+            name = _author_name(str(author))
+            if name is None:
+                continue
+            key = _author_key(name)
+            keys.append(key)
+            if len(name) > len(spellings.get(key, "")):
+                spellings[key] = name
+        keyed.append(keys)
+
+    initials_of: dict[str, list[tuple[str, str]]] = {}
+    for key in spellings:
+        if key[1]:
+            initials_of.setdefault(key[0], []).append(key)
+
+    def resolve(key: tuple[str, str]) -> tuple[str, str]:
+        full = initials_of.get(key[0], [])
+        return full[0] if not key[1] and len(full) == 1 else key
+
+    return [list(dict.fromkeys(spellings[resolve(key)] for key in keys)) for keys in keyed]
 
 
 async def _stop(process: asyncio.subprocess.Process) -> None:
@@ -173,14 +237,16 @@ class Steps:
         self,
         references: list[Mapping[str, Any]],
         on_progress: Callable[[int], None],
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Finds the best text of each raw reference, one corpus document each.
 
         Full text first, then the abstract, then the title with the sentences that
         cite it. A fabricated reference has only the last, and still gets a topic.
+        Each document also names the reference's authors, for Saffron's author links.
         """
+        authors_of = canonical_authors(references)
 
-        def collect() -> list[dict[str, str]]:
+        def collect() -> list[dict[str, Any]]:
             documents = []
             self._last_arxiv_call = 0.0
             for position, raw in enumerate(references, 1):
@@ -209,6 +275,7 @@ class Steps:
                         "name": title or f"Reference {position}",
                         "contents": ". ".join(part for part in (title, text) if part) or "Untitled",
                         "mime_type": "text/plain",
+                        "authors": authors_of[position - 1],
                         "textSource": source,
                     }
                 )
@@ -235,9 +302,13 @@ class Steps:
     async def extract_topics(
         self,
         analysis_id: str,
-        documents: list[dict[str, str]],
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        """Runs Saffron. Returns its doc-terms and taxonomy."""
+        documents: list[dict[str, Any]],
+    ) -> SaffronOutput:
+        """Runs Saffron and reads what it wrote.
+
+        Without doc-terms and the taxonomy there are no topics, so the step fails.
+        The other files only add to the topics, and a missing one is left empty.
+        """
         command = self._settings.saffron_command
         if not command:
             raise StepError("Topic extraction isn't set up on the server.")
@@ -246,18 +317,7 @@ class Steps:
         output = job_dir / "saffron"
         output.mkdir(exist_ok=True)
         corpus = job_dir / "corpus.json"
-        corpus.write_text(
-            json.dumps(
-                {
-                    "documents": [
-                        {key: doc[key] for key in ("id", "name", "contents", "mime_type")}
-                        for doc in documents
-                    ]
-                },
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
+        corpus.write_text(json.dumps(saffron_corpus(documents), ensure_ascii=False), encoding="utf-8")
         with (job_dir / "saffron.log").open("ab") as log:
             process = await asyncio.create_subprocess_shell(
                 command.format(corpus=corpus, output=output, config=self._settings.saffron_config),
@@ -276,7 +336,35 @@ class Steps:
         taxonomy = output / "taxonomy.json"
         if code != 0 or not doc_terms.exists() or not taxonomy.exists():
             raise StepError("Couldn't extract topics.")
-        return (
-            json.loads(doc_terms.read_text(encoding="utf-8")),
-            json.loads(taxonomy.read_text(encoding="utf-8")),
+        return SaffronOutput(
+            doc_terms=json.loads(doc_terms.read_text(encoding="utf-8")),
+            taxonomy=json.loads(taxonomy.read_text(encoding="utf-8")),
+            terms=_optional_list(output / "terms.json"),
+            term_sim=_optional_list(output / "term-sim.json"),
+            author_terms=_optional_list(output / "author-terms.json"),
+            author_sim=_optional_list(output / "author-sim.json"),
         )
+
+
+def saffron_corpus(documents: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """The corpus file Saffron reads: text and authors, none of our own fields."""
+    return {
+        "documents": [
+            {
+                **{key: doc[key] for key in ("id", "name", "contents", "mime_type")},
+                "authors": [{"id": name, "name": name} for name in doc.get("authors") or []],
+            }
+            for doc in documents
+        ]
+    }
+
+
+def _optional_list(path: Path) -> list[dict[str, Any]]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as error:
+        logger.warning("Ignoring %s: %s", path.name, error)
+        return []
+    return value if isinstance(value, list) else []
