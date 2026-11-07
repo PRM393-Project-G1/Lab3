@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from orchestrator.steps import SaffronOutput
+
 UID = "user-1"
 TOKEN = "good-token"
 
@@ -90,9 +92,12 @@ class FakeSteps:
             for i, ref in enumerate(references, 1)
         ]
 
-    async def extract_topics(self, analysis_id: str, documents: list[dict[str, str]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    async def extract_topics(self, analysis_id: str, documents: list[dict[str, Any]]) -> SaffronOutput:
         self._maybe_fail("topics")
-        return (
-            [{"document_id": "ref-001", "term_string": "attention"}],
-            {"root": "HEAD_TERM", "children": [{"root": "attention", "score": 0.9, "children": []}]},
+        return SaffronOutput(
+            doc_terms=[{"document_id": "ref-001", "term_string": "attention"}],
+            taxonomy={"root": "HEAD_TERM", "children": [{"root": "attention", "score": 0.9, "children": []}]},
+            terms=[{"term_string": "attention", "score": 0.8, "occurrences": 3}],
+            author_terms=[{"authorId": "A. Vaswani", "termId": "attention", "score": 0.5}],
+            author_sim=[{"author1_id": "A. Vaswani", "author2_id": "N. Shazeer", "similarity": 0.9}],
         )

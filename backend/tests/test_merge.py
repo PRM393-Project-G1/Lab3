@@ -230,3 +230,112 @@ class TestTopics:
             references, links(a=["ref-001", "ref-999"]), node("HEAD_TERM", node("a"))
         )
         assert topics[0]["refIds"] == ["ref-001"]
+
+
+class TestTermDetails:
+    def topics(self, **saffron):
+        references = refs("verified", "error")
+        taxonomy = node("HEAD_TERM", node("attention"), node("Machine Translation"), node("empty"))
+        return merge.build_topics(
+            references,
+            links(attention=["ref-001"], machine_translation=["ref-002"]),
+            taxonomy,
+            **saffron,
+        )
+
+    def by_term(self, topics):
+        return {topic["term"]: topic for topic in topics}
+
+    def test_without_the_extra_files_every_topic_still_has_the_fields(self):
+        for topic in self.topics():
+            assert (topic["importance"], topic["occurrences"]) == (0.0, 0)
+            assert (topic["related"], topic["authors"]) == ([], [])
+
+    def test_importance_and_occurrences_match_by_term_ignoring_case(self):
+        topics = self.by_term(
+            self.topics(terms=[{"term_string": "machine translation", "score": 0.7, "occurrences": 4}])
+        )
+        assert topics["Machine Translation"]["importance"] == 0.7
+        assert topics["Machine Translation"]["occurrences"] == 4
+        assert topics["attention"]["importance"] == 0.0
+
+    def test_related_topics_go_both_ways_strongest_first(self):
+        topics = self.by_term(
+            self.topics(
+                term_sim=[
+                    {"term1_id": "attention", "term2_id": "machine translation", "similarity": 0.4},
+                    {"term1_id": "attention", "term2_id": "empty", "similarity": 0.9},
+                    {"term1_id": "attention", "term2_id": "attention", "similarity": 1.0},
+                ]
+            )
+        )
+        translation = topics["Machine Translation"]
+        assert topics["attention"]["related"] == [
+            {"topicId": translation["id"], "term": "Machine Translation", "similarity": 0.4}
+        ]
+        assert translation["related"][0]["term"] == "attention"
+
+    def test_related_topics_are_capped(self):
+        terms = [f"t{i}" for i in range(merge.MAX_RELATED_TOPICS + 3)]
+        topics = merge.build_topics(
+            refs(*["verified"] * len(terms)),
+            [{"document_id": f"ref-{i:03d}", "term_string": term} for i, term in enumerate(terms, 1)],
+            node("HEAD_TERM", *[node(term) for term in terms]),
+            term_sim=[
+                {"term1_id": "t0", "term2_id": term, "similarity": i / 10}
+                for i, term in enumerate(terms[1:], 1)
+            ],
+        )
+        related = topics[0]["related"]
+        assert len(related) == merge.MAX_RELATED_TOPICS
+        assert related[0]["term"] == terms[-1]
+
+    def test_authors_are_the_highest_scoring_per_topic(self):
+        topics = self.by_term(
+            self.topics(
+                author_terms=[
+                    {"authorId": "Ashish Vaswani", "termId": "attention", "score": 0.2},
+                    {"authorId": "Noam Shazeer", "termId": "attention", "score": 0.6},
+                    {"authorId": "Ashish Vaswani", "termId": "attention", "score": 0.3},
+                    {"authorId": "", "termId": "attention", "score": 0.9},
+                ]
+            )
+        )
+        assert topics["attention"]["authors"] == [
+            {"name": "Noam Shazeer", "score": 0.6},
+            {"name": "Ashish Vaswani", "score": 0.3},
+        ]
+        assert topics["Machine Translation"]["authors"] == []
+
+
+class TestAuthorLinks:
+    def test_each_pair_once_strongest_first(self):
+        links_ = merge.author_links(
+            [
+                {"author1_id": "B", "author2_id": "A", "similarity": 0.5},
+                {"author1_id": "A", "author2_id": "B", "similarity": 0.7},
+                {"author1_id": "A", "author2_id": "C", "similarity": 0.9},
+            ]
+        )
+        assert links_ == [
+            {"a": "A", "b": "C", "similarity": 0.9},
+            {"a": "A", "b": "B", "similarity": 0.7},
+        ]
+
+    def test_skips_self_pairs_blank_names_and_nan(self):
+        assert merge.author_links(
+            [
+                {"author1_id": "A", "author2_id": "A", "similarity": 1.0},
+                {"author1_id": "", "author2_id": "B", "similarity": 0.5},
+                {"author1_id": "A", "author2_id": "B", "similarity": "NaN"},
+            ]
+        ) == []
+
+    def test_keeps_only_the_strongest_pairs(self):
+        pairs = [
+            {"author1_id": f"A{i:02d}", "author2_id": "Z", "similarity": i / 100}
+            for i in range(1, merge.MAX_AUTHOR_LINKS + 6)
+        ]
+        links_ = merge.author_links(pairs)
+        assert len(links_) == merge.MAX_AUTHOR_LINKS
+        assert links_[0]["similarity"] == (merge.MAX_AUTHOR_LINKS + 5) / 100

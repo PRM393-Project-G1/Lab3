@@ -14,6 +14,10 @@ STATUSES = ("hallucinated", "error", "warning", "unverified", "verified")
 HEAD_TERM = "HEAD_TERM"
 # Full texts mention most terms, so every topic would hold almost every reference.
 MAX_TOPICS_PER_REFERENCE = 5
+# Enough to read on a phone; the rest of Saffron's pairs are weak links.
+MAX_RELATED_TOPICS = 5
+MAX_TOPIC_AUTHORS = 5
+MAX_AUTHOR_LINKS = 20
 
 
 def map_status(raw: Mapping[str, Any]) -> str:
@@ -131,6 +135,10 @@ def build_topics(
     references: list[dict[str, Any]],
     doc_terms: Iterable[Mapping[str, Any]],
     taxonomy: Mapping[str, Any],
+    *,
+    terms: Iterable[Mapping[str, Any]] = (),
+    term_sim: Iterable[Mapping[str, Any]] = (),
+    author_terms: Iterable[Mapping[str, Any]] = (),
 ) -> list[dict[str, Any]]:
     """Flattens the taxonomy and fills in `topicIds` on each reference.
 
@@ -138,6 +146,9 @@ def build_topics(
     reference once. A reference joins only its strongest few terms. Branches with
     no reference are dropped. A reference with no term stays without topics, and the
     app shows it as Unclassified.
+
+    The other Saffron files add how important each topic is in the corpus, the
+    topics that share its references, and the authors who write most about it.
     """
     status_of = {ref["id"]: ref["status"] for ref in references}
     links_of_ref: dict[str, list[Mapping[str, Any]]] = {}
@@ -152,8 +163,8 @@ def build_topics(
             key=lambda link: (_score(link.get("tfidf")), link.get("occurrences") or 0),
             reverse=True,
         )
-        terms = {link["term_string"].lower() for link in strongest[:MAX_TOPICS_PER_REFERENCE]}
-        for term in terms:
+        kept = {link["term_string"].lower() for link in strongest[:MAX_TOPICS_PER_REFERENCE]}
+        for term in kept:
             refs_of_term.setdefault(term, []).append(ref_id)
 
     topics: list[dict[str, Any]] = []
@@ -190,4 +201,81 @@ def build_topics(
             topics_of_ref.setdefault(ref_id, []).append(topic["id"])
     for ref in references:
         ref["topicIds"] = topics_of_ref.get(ref["id"], [])
+
+    _add_term_details(topics, terms, term_sim, author_terms)
     return topics
+
+
+def _add_term_details(
+    topics: list[dict[str, Any]],
+    terms: Iterable[Mapping[str, Any]],
+    term_sim: Iterable[Mapping[str, Any]],
+    author_terms: Iterable[Mapping[str, Any]],
+) -> None:
+    """Sets `importance`, `occurrences`, `related` and `authors` on every topic.
+
+    Saffron names terms by their text, so they are matched to topics by term.
+    Terms that were dropped with an empty branch are skipped.
+    """
+    by_term: dict[str, list[dict[str, Any]]] = {}
+    for topic in topics:
+        by_term.setdefault(topic["term"].lower(), []).append(topic)
+        topic.update(importance=0.0, occurrences=0, related=[], authors=[])
+
+    for term in terms:
+        for topic in by_term.get(str(term.get("term_string") or "").lower(), []):
+            topic["importance"] = _score(term.get("score"))
+            topic["occurrences"] = int(term.get("occurrences") or 0)
+
+    related: dict[str, dict[str, float]] = {}
+    names = {topic["id"]: topic["term"] for topic in topics}
+    for pair in term_sim:
+        similarity = _score(pair.get("similarity"))
+        firsts = by_term.get(str(pair.get("term1_id") or "").lower(), [])
+        seconds = by_term.get(str(pair.get("term2_id") or "").lower(), [])
+        for first in firsts:
+            for second in seconds:
+                if first is second or similarity <= 0:
+                    continue
+                for a, b in ((first, second), (second, first)):
+                    links = related.setdefault(a["id"], {})
+                    links[b["id"]] = max(links.get(b["id"], 0.0), similarity)
+
+    authors: dict[str, dict[str, float]] = {}
+    for link in author_terms:
+        name = str(link.get("authorId") or "").strip()
+        for topic in by_term.get(str(link.get("termId") or "").lower(), []):
+            if name:
+                scores = authors.setdefault(topic["id"], {})
+                scores[name] = max(scores.get(name, 0.0), _score(link.get("score")))
+
+    for topic in topics:
+        nearest = sorted(
+            related.get(topic["id"], {}).items(), key=lambda item: (-item[1], names[item[0]])
+        )
+        topic["related"] = [
+            {"topicId": other, "term": names[other], "similarity": round(similarity, 3)}
+            for other, similarity in nearest[:MAX_RELATED_TOPICS]
+        ]
+        strongest = sorted(authors.get(topic["id"], {}).items(), key=lambda item: (-item[1], item[0]))
+        topic["authors"] = [
+            {"name": name, "score": round(score, 3)} for name, score in strongest[:MAX_TOPIC_AUTHORS]
+        ]
+
+
+def author_links(author_sim: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The most similar pairs of authors, each pair once, for `analyses/{id}.authorLinks`.
+
+    Two authors are similar when they write about the same topics.
+    """
+    best: dict[tuple[str, str], float] = {}
+    for pair in author_sim:
+        a = str(pair.get("author1_id") or "").strip()
+        b = str(pair.get("author2_id") or "").strip()
+        similarity = _score(pair.get("similarity"))
+        if not a or not b or a == b or similarity <= 0:
+            continue
+        key = (a, b) if a < b else (b, a)
+        best[key] = max(best.get(key, 0.0), similarity)
+    strongest = sorted(best.items(), key=lambda item: (-item[1], item[0]))[:MAX_AUTHOR_LINKS]
+    return [{"a": a, "b": b, "similarity": round(similarity, 3)} for (a, b), similarity in strongest]

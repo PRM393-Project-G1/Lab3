@@ -6,7 +6,7 @@ Service FastAPI nhận lệnh từ app qua Tailscale, chạy RefChecker và Saff
 POST /api/analyses
   → RefChecker: đọc và kiểm tra reference
   → lấy văn bản: toàn văn arXiv → abstract → tiêu đề + câu trích dẫn
-  → Saffron: rút chủ đề, dựng cây
+  → Saffron: rút chủ đề, dựng cây, chấm điểm chủ đề, tìm chủ đề liên quan và tác giả chính
   → ghi analyses/{id}, references, topics → notification + FCM
 ```
 
@@ -135,6 +135,8 @@ Trong đó `train-config.json` là:
 ```
 
 `SAFFRON_HOME` phải dùng **dấu `/`**: Saffron làm mất dấu `\` trong đường dẫn.
+
+Corpus gửi cho Saffron có tên tác giả của từng reference. Saffron coi `A. Vaswani` và `Ashish Vaswani` là hai người, nên backend gộp trước: mỗi người lấy cách viết dài nhất trong bài, so theo họ và chữ cái đầu của tên; bỏ `et al.`, `others`. Chỉ `doc-terms.json` và `taxonomy.json` là bắt buộc; thiếu file nào khác thì phần đó để trống và job vẫn xong.
 
 ## Test
 
