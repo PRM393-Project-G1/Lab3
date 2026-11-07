@@ -31,11 +31,15 @@ class StatusBar extends StatelessWidget {
       excludeSemantics: true,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.sm),
+        // A ColoredBox without a child takes the smallest size it may, so the
+        // bar fixes both sides and the row stretches its segments to full height.
         child: SizedBox(
+          width: double.infinity,
           height: AppSizes.statusBarHeight,
           child: counts.total == 0
               ? ColoredBox(color: context.colors.surfaceContainerHigh)
               : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final status in RefStatus.values)
                       if (counts.of(status) > 0)
