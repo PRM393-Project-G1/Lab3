@@ -18,6 +18,7 @@ Trạng thái: `Todo` · `Doing` · `Done`.
 | 3 | Analyzing | `/analyses/:id/progress` | `ProgressScreen` / `ProgressViewModel` | `analyses/{id}` (realtime); `POST /api/analyses/{id}/cancel` | Doing |
 | 4 | Paper Overview | `/analyses/:id` | `OverviewScreen` / `OverviewViewModel` | `analyses/{id}`, `analyses/{id}/topics`; Remote Config | Doing |
 | 5 | Topics | `/analyses/:id/topics` | `TopicMapScreen` / `TopicMapViewModel` | `analyses/{id}/topics`; Remote Config | Doing |
+| — | Knowledge graph (không có trong Figma) | `/analyses/:id/graph` | `KnowledgeGraphScreen` / `KnowledgeGraphViewModel` | `analyses/{id}`, `analyses/{id}/topics`, `analyses/{id}/references`; Gemini qua Firebase AI Logic; Remote Config | Doing |
 | 6 | Topic | `/analyses/:id/topics/:topicId` | `TopicDetailScreen` / `TopicDetailViewModel` | `topics/{topicId}`, `analyses/{id}/references` | Doing |
 | 7 | References | `/analyses/:id/references` | `ReferenceListScreen` / `ReferenceListViewModel` | `analyses/{id}/references` | Doing |
 | 8 | Reference | `/analyses/:id/references/:refId` | `ReferenceDetailScreen` / `ReferenceDetailViewModel` | `references/{refId}` | Doing |
@@ -111,4 +112,5 @@ Thầy đã duyệt đổi sang sản phẩm RefCheck + Saffron, và nhóm làm 
 | Export | Nút `Done`, `Cancel`, `×` trong sheet | Kéo xuống hoặc chạm ngoài sheet để đóng | Cùng tác dụng, ít chữ hơn | Không cần |
 | Sign-in | Logo Google, logo Realtron | Icon Material thay thế | Chưa có file ảnh; cần thay trước khi nộp | Không cần |
 | Topics, Topic | Chỉ có cây chủ đề và danh sách reference | Topics có thẻ `Key topics` (6 chủ đề điểm Saffron cao nhất, chạm để mở). Topic có dòng `31 mentions · #2 of 35 by Saffron score`, chip `Related topics` và danh sách `Key authors`. Tất cả ẩn khi phân tích chưa có dữ liệu này | Dùng phần đầu ra của Saffron trước đây bị bỏ (điểm, chủ đề liên quan, tác giả) | Chưa |
+| Knowledge graph | Không có | Màn mới, mở từ nút trên Topics: đồ thị chủ đề (cạnh cha–con, `Related`, tác giả), quan hệ `Is a` / `Part of` / `Same as` do Gemini gán kèm dòng `may be wrong`, sheet chi tiết node có nút `Open topic`. Có `Couldn't name relations` + `Retry` khi Gemini lỗi | Cây chủ đề không cho thấy quan hệ giữa các nhánh | Chưa |
 | Chữ mới | Không có trong `user-flow.md` | `Sign-in failed`, `Couldn't start`, `N with errors`, `Couldn't save`, `Couldn't delete`, `Error logged`, `Setup needed`, `No app can open PDF`, nút `View` trên snackbar push | Trường hợp lỗi thật mà thiết kế chưa có | Chưa |

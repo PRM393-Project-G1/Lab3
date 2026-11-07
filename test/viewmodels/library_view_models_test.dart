@@ -412,13 +412,14 @@ void main() {
       messaging = FakeMessaging();
     });
 
-    test('shows the five Remote Config values', () {
-      expect(build().remoteConfigRows.map((row) => row.$1), [
-        'weak_topic_threshold',
-        'weak_topic_min_refs',
-        'max_recent_checks',
-        'enable_report_export',
-        'enable_cloud_upload',
+    test('shows the six Remote Config values', () {
+      expect(build().remoteConfigRows, [
+        ('weak_topic_threshold', '0.5'),
+        ('weak_topic_min_refs', '3'),
+        ('max_recent_checks', '10'),
+        ('enable_report_export', 'true'),
+        ('enable_cloud_upload', 'false'),
+        ('gemini_model', 'gemini-test'),
       ]);
     });
 

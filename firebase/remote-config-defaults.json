@@ -3,5 +3,6 @@
   "weak_topic_min_refs": 3,
   "max_recent_checks": 10,
   "enable_report_export": true,
-  "enable_cloud_upload": false
+  "enable_cloud_upload": false,
+  "gemini_model": "gemini-3.5-flash-lite"
 }

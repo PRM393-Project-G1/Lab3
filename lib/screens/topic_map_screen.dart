@@ -22,7 +22,18 @@ class TopicMapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<TopicMapViewModel>();
     return Scaffold(
-      appBar: AppTopBar(title: 'Topics', subtitle: vm.paperTitle),
+      appBar: AppTopBar(
+        title: 'Topics',
+        subtitle: vm.paperTitle,
+        actions: [
+          if (vm.state is Data)
+            IconButton(
+              tooltip: 'Knowledge graph',
+              icon: const Icon(Icons.hub_outlined),
+              onPressed: () => context.push('/analyses/${vm.analysisId}/graph'),
+            ),
+        ],
+      ),
       body: switch (vm.state) {
         Loading() => const SkeletonList(),
         Failure() => StateView.error(onAction: vm.load),

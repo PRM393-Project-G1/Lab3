@@ -13,6 +13,9 @@ abstract class RemoteConfigService extends ChangeNotifier {
   /// Uploads the report to Cloudinary when on. Off by default: the backend
   /// needs its CLOUDINARY_* settings first.
   bool get enableCloudUpload;
+
+  /// Gemini model that names the relations on the knowledge graph.
+  String get geminiModel;
 }
 
 class FirebaseRemoteConfigService extends RemoteConfigService {
@@ -29,6 +32,7 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
     'max_recent_checks': 10,
     'enable_report_export': true,
     'enable_cloud_upload': false,
+    'gemini_model': 'gemini-3.5-flash-lite',
   };
 
   Future<void> init() async {
@@ -72,4 +76,7 @@ class FirebaseRemoteConfigService extends RemoteConfigService {
 
   @override
   bool get enableCloudUpload => _config.getBool('enable_cloud_upload');
+
+  @override
+  String get geminiModel => _config.getString('gemini_model');
 }

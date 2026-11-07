@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:realtron/app_router.dart';
+import 'package:realtron/firebase/ai_service.dart';
 import 'package:realtron/firebase/analytics_service.dart';
 import 'package:realtron/firebase/auth_service.dart';
 import 'package:realtron/firebase/crashlytics_service.dart';
@@ -16,6 +17,7 @@ import 'package:realtron/models/library_entry.dart';
 import 'package:realtron/models/ref_status.dart';
 import 'package:realtron/models/reference.dart';
 import 'package:realtron/models/topic.dart';
+import 'package:realtron/models/topic_relation.dart';
 import 'package:realtron/services/analysis_repository.dart';
 import 'package:realtron/services/api_client.dart';
 import 'package:realtron/services/device_actions.dart';
@@ -27,6 +29,7 @@ import 'package:realtron/services/server_settings.dart';
 import 'package:realtron/theme/app_theme.dart';
 import 'package:realtron/viewmodels/auth_view_model.dart';
 import 'package:realtron/widgets/app_filter_chip.dart';
+import 'package:realtron/widgets/knowledge_graph_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes.dart';
@@ -52,6 +55,7 @@ void main() {
   late FakeStorage storage;
   late FakeReportFiles files;
   late FakeFirestore firestore;
+  late FakeAi ai;
   late ServerSettings settings;
 
   setUp(() async {
@@ -67,6 +71,7 @@ void main() {
     storage = FakeStorage();
     files = FakeReportFiles();
     firestore = FakeFirestore();
+    ai = FakeAi();
     analyses = FakeAnalyses()
       ..analyses[id] = doneAnalysis(
         id,
@@ -173,6 +178,7 @@ void main() {
           Provider<ReportService>.value(value: FakeReport()),
           Provider<ReportFiles>.value(value: files),
           Provider<DeviceActions>.value(value: device),
+          Provider<AiService>.value(value: ai),
           ChangeNotifierProvider<AuthViewModel>.value(value: authVm),
         ],
         child: MaterialApp.router(
@@ -438,6 +444,80 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(device.opened, ['https://arxiv.org/abs/1409.3215']);
+    });
+
+    testWidgets('knowledge graph: Gemini relations, node sheet, open topic', (
+      tester,
+    ) async {
+      ai.relations = const [
+        TopicRelation('Optimizers', 'Attention', RelationKind.partOf),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/analyses/$id/topics');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Knowledge graph'));
+      await tester.pumpAndSettle();
+      expect(find.text('Knowledge graph'), findsOneWidget);
+      expect(find.text('1 relation by Gemini · may be wrong'), findsOneWidget);
+      expect(ai.calls.single.model, 'gemini-test');
+      expect(ai.calls.single.paperTitle, 'Attention Is All You Need');
+      expect(find.text('Part of'), findsOneWidget);
+      expect(find.text('Author'), findsNothing);
+
+      await tester.tap(find.widgetWithText(AppFilterChip, 'Authors'));
+      await tester.pumpAndSettle();
+      expect(find.text('Author'), findsOneWidget);
+      expect(
+        find.byKey(KnowledgeGraphView.nodeKey('author:Ashish Vaswani')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(KnowledgeGraphView.nodeKey('weak')));
+      await tester.pumpAndSettle();
+      expect(find.text('NAMED BY GEMINI'), findsOneWidget);
+      expect(find.text('Has parts'), findsOneWidget);
+      expect(find.text('FOUND TOGETHER IN REFERENCES'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Noam Shazeer'), findsOneWidget);
+
+      // A linked topic in the sheet moves to that topic.
+      await tester.tap(find.widgetWithText(ActionChip, 'Optimizers').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Part of'), findsWidgets);
+      expect(find.widgetWithText(ActionChip, 'Attention'), findsWidgets);
+
+      await tester.tap(find.text('Open topic'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('12 mentions · #2 of 2 by Saffron score'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the graph works without Gemini and retries it', (
+      tester,
+    ) async {
+      ai.error = StateError('quota');
+      final router = await pumpApp(tester);
+      router.go('/analyses/$id/graph');
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't name relations"), findsOneWidget);
+      expect(crashlytics.recorded, contains('gemini_relations'));
+      expect(find.byKey(KnowledgeGraphView.nodeKey('weak')), findsOneWidget);
+
+      ai.error = const AiException(AiFailure.busy);
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Gemini is busy. Try again in a minute'),
+        findsOneWidget,
+      );
+
+      ai.error = null;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(find.text('Gemini found no clear relations'), findsOneWidget);
     });
 
     testWidgets('key topics, related topics and authors from Saffron', (
@@ -799,6 +879,7 @@ void main() {
       '/analyses/$id',
       '/analyses/$id/topics',
       '/analyses/$id/topics/weak',
+      '/analyses/$id/graph',
       '/analyses/$id/references',
       '/analyses/$id/references/e1',
       '/analyses/$id/progress',

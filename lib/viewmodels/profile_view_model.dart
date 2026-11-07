@@ -65,6 +65,7 @@ class ProfileViewModel extends BaseViewModel {
     ('max_recent_checks', '${_remoteConfig.maxRecentChecks}'),
     ('enable_report_export', '${_remoteConfig.enableReportExport}'),
     ('enable_cloud_upload', '${_remoteConfig.enableCloudUpload}'),
+    ('gemini_model', _remoteConfig.geminiModel),
   ];
 
   Future<void> setAiCheck(bool value) => _settings.setAiCheck(value);
