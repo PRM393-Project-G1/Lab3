@@ -17,6 +17,7 @@ ADMIN_MESSAGE = "admin_message"
 REQUESTS = "adminNotificationRequests"
 DIRECTORY = "adminUserDirectory"
 HEARTBEAT_NAME = "notifications"
+ANALYSIS_ID = re.compile(r"\d{4}\.\d{4,5}")
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,8 @@ class Announcement:
     requested_by: str
     audience: str
     recipient_uids: tuple[str, ...]
+    # Optional paper to open when the user taps the message.
+    analysis_id: str | None = None
 
     @classmethod
     def parse(cls, data: dict[str, Any]) -> "Announcement":
@@ -47,7 +50,10 @@ class Announcement:
             raise ValueError("Select at most 100 distinct recipients.")
         if (audience == "all" and uids) or (audience == "selected" and not uids):
             raise ValueError("The recipient list does not match the audience.")
-        return cls(title.strip(), body.strip(), sender, audience, tuple(uids))
+        analysis_id = data.get("analysisId")
+        if analysis_id is not None and (not isinstance(analysis_id, str) or not ANALYSIS_ID.fullmatch(analysis_id)):
+            raise ValueError("The linked paper is not a valid arXiv ID.")
+        return cls(title.strip(), body.strip(), sender, audience, tuple(uids), analysis_id)
 
 
 @dataclass

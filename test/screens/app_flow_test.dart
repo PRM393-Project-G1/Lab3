@@ -527,6 +527,37 @@ void main() {
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Open paper'), findsNothing);
+    });
+
+    testWidgets('an admin message linking a paper opens it from the dialog', (
+      tester,
+    ) async {
+      firestore.notifications = [
+        AppNotification(
+          id: 'admin-link',
+          title: 'Read this paper',
+          body: 'Its references are a good example.',
+          type: 'admin_message',
+          analysisId: id,
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/notifications');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Read this paper'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Its references are a good example.'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Open paper'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/analyses/$id');
     });
 
     setUp(() {

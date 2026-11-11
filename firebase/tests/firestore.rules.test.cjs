@@ -112,6 +112,7 @@ test('only admin can create and read an announcement request', async () => {
 test('selected audience, server timestamp and immutable payload are enforced', async () => {
   const path = 'adminNotificationRequests/rules-selected-announcement-1234';
   await assertSucceeds(setDoc(doc(admin, path), announcement({ audience: 'selected', recipientUids: ['user'] })));
+  await assertSucceeds(setDoc(doc(admin, 'adminNotificationRequests/rules-linked-announcement-1234'), announcement({ analysisId: '1706.03762' })));
   await assertFails(updateDoc(doc(admin, path), { title: 'Changed content' }));
   await assertFails(updateDoc(doc(admin, path), { status: 'completed', counts: { pushAccepted: 100 } }));
   await assertFails(deleteDoc(doc(admin, path)));
@@ -119,7 +120,7 @@ test('selected audience, server timestamp and immutable payload are enforced', a
     { requestedBy: 'someone-else' }, { status: 'completed' }, { createdAt: new Date(2000, 0, 1) },
     { title: '' }, { body: 'x'.repeat(501) }, { audience: 'all', recipientUids: ['user'] },
     { audience: 'selected', recipientUids: [] }, { audience: 'selected', recipientUids: ['user', 'user'] },
-    { counts: { pushAccepted: 100 } }, { recipientUids: 'not-an-array' },
+    { counts: { pushAccepted: 100 } }, { recipientUids: 'not-an-array' }, { analysisId: '../users' }, { analysisId: 1706 },
   ];
   for (let i = 0; i < invalid.length; i++) {
     await assertFails(setDoc(doc(admin, `adminNotificationRequests/rules-invalid-request-number-${i}`), announcement(invalid[i])));

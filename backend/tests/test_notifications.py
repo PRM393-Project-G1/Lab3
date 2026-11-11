@@ -156,3 +156,16 @@ def test_standalone_loop_stops_without_leaving_a_pending_task():
         assert store.synced == 1
         assert store.heartbeats == [("notifications", "running"), ("notifications", "stopped")]
     asyncio.run(scenario())
+
+
+def test_a_linked_paper_travels_with_the_message_and_bad_links_fail_safely():
+    store = FakeNotificationStore()
+    store.requests[REQUEST_ID]["analysisId"] = "1706.03762"
+    NotificationWorker(store).tick()
+    assert store.requests[REQUEST_ID]["status"] == "completed"
+    assert {announcement.analysis_id for announcement in store.inbox.values()} == {"1706.03762"}
+    for value in ("../users", 1706.03762, ""):
+        store = FakeNotificationStore()
+        store.requests[REQUEST_ID]["analysisId"] = value
+        NotificationWorker(store).tick()
+        assert store.requests[REQUEST_ID]["status"] == "failed" and not store.inbox

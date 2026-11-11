@@ -93,3 +93,14 @@ describe('user directory helpers', async () => {
     expect(normalizeAction({ type: 'setRole', target: 'b', role: 'admin', disabled: true, reason: ' ' })).toEqual({ type: 'setRole', target: 'b', role: 'admin' });
   });
 });
+
+describe('announcement drafts with a paper link', async () => {
+  const { normalizeDraft, validateDraft, parseAnnouncement } = await import('../src/domain/notifications');
+  it('keeps a valid link, drops an empty one and rejects anything else', () => {
+    const base = { title: 'T', body: 'B', audience: 'all' as const, recipientUids: [] };
+    expect(normalizeDraft({ ...base, analysisId: ' ' })).toEqual(base);
+    expect(validateDraft({ ...base, analysisId: '1706.03762' })).toBeNull();
+    expect(validateDraft({ ...base, analysisId: '../users' })).toMatch(/valid paper/);
+    expect(parseAnnouncement('x', { ...base, analysisId: '1706.03762' }).analysisId).toBe('1706.03762');
+  });
+});

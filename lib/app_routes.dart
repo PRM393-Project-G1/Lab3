@@ -39,4 +39,13 @@ abstract final class AppRoutes {
 
   static String reference(String id, String refId) =>
       '${overview(id)}/references/$refId';
+
+  /// Where a tapped push leads: the linked paper when there is one, otherwise
+  /// the inbox for an admin message. Null when there is nothing to open.
+  static String? forPush({required bool adminMessage, String? analysisId}) {
+    if (analysisId != null && analysisId.isNotEmpty) {
+      return overview(analysisId);
+    }
+    return adminMessage ? notifications : null;
+  }
 }

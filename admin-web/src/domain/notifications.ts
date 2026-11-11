@@ -1,7 +1,11 @@
 import { date, type RawDocument } from './analysis';
 
 export interface NotificationRecipient { uid: string; name: string; hasDevice: boolean }
-export interface AnnouncementDraft { title: string; body: string; audience: 'all' | 'selected'; recipientUids: string[] }
+export interface AnnouncementDraft {
+  title: string; body: string; audience: 'all' | 'selected'; recipientUids: string[];
+  /** A paper the message opens when tapped. */
+  analysisId?: string;
+}
 export type AnnouncementStatus = 'queued' | 'processing' | 'completed' | 'partial' | 'failed' | 'interrupted' | 'unknown';
 export interface AnnouncementCounts {
   recipients: number; inboxStored: number; pushAccepted: number; pushFailed: number;
@@ -13,8 +17,9 @@ export interface AnnouncementRequest extends AnnouncementDraft {
 }
 
 export function normalizeDraft(draft: AnnouncementDraft): AnnouncementDraft {
+  const analysisId = draft.analysisId?.trim();
   return { title: draft.title.trim(), body: draft.body.trim(), audience: draft.audience,
-    recipientUids: draft.audience === 'all' ? [] : [...new Set(draft.recipientUids)].sort() };
+    recipientUids: draft.audience === 'all' ? [] : [...new Set(draft.recipientUids)].sort(), ...(analysisId ? { analysisId } : {}) };
 }
 export function validateDraft(raw: AnnouncementDraft): string | null {
   const draft = normalizeDraft(raw);
@@ -22,6 +27,7 @@ export function validateDraft(raw: AnnouncementDraft): string | null {
   if (!draft.body || draft.body.length > 500) return 'Enter a message with 1–500 characters.';
   if (draft.audience === 'selected' && !draft.recipientUids.length) return 'Select at least one user.';
   if (draft.recipientUids.length > 100) return 'Select at most 100 users per message.';
+  if (draft.analysisId !== undefined && !/^\d{4}\.\d{4,5}$/.test(draft.analysisId)) return 'Choose a valid paper to link.';
   return null;
 }
 export function parseAnnouncement(id: string, raw: RawDocument): AnnouncementRequest {
@@ -31,6 +37,7 @@ export function parseAnnouncement(id: string, raw: RawDocument): AnnouncementReq
   return { id, title: typeof raw.title === 'string' ? raw.title : 'Untitled message',
     body: typeof raw.body === 'string' ? raw.body : '', audience: raw.audience === 'selected' ? 'selected' : 'all',
     recipientUids: Array.isArray(raw.recipientUids) ? raw.recipientUids.filter((uid): uid is string => typeof uid === 'string') : [],
+    ...(typeof raw.analysisId === 'string' ? { analysisId: raw.analysisId } : {}),
     requestedBy: typeof raw.requestedBy === 'string' ? raw.requestedBy : '', createdAt: date(raw.createdAt),
     status: states.includes(raw.status as string) ? raw.status as AnnouncementStatus : 'unknown',
     error: typeof raw.error === 'string' ? raw.error : null,

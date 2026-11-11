@@ -77,12 +77,11 @@ class _RealtronAppState extends State<RealtronApp> {
 
   void _openPush(PushMessage push) {
     context.read<AnalyticsService>().logNotificationOpen(push.type);
-    final id = push.analysisId;
-    if (push.isAdminMessage) {
-      _router.go(AppRoutes.notifications);
-    } else if (id != null) {
-      _router.go(AppRoutes.overview(id));
-    }
+    final route = AppRoutes.forPush(
+      adminMessage: push.isAdminMessage,
+      analysisId: push.analysisId,
+    );
+    if (route != null) _router.go(route);
   }
 
   void _openShared(String text) {

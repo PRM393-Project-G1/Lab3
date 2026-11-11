@@ -430,3 +430,22 @@ describe('user management', () => {
     expect(await screen.findByText('User not found')).toBeInTheDocument();
   });
 });
+
+describe('announcement links', () => {
+  it('links a completed paper, previews it, and sends its ID with the message', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/notifications');
+    await screen.findByText('User A');
+    await userEvent.type(screen.getByRole('textbox', { name: /^Title/ }), 'New results');
+    await userEvent.type(screen.getByRole('textbox', { name: /^Message/ }), 'Take a look at this paper.');
+    const picker = screen.getByRole('combobox', { name: /Link to a paper/ });
+    expect(within(picker).queryByText(/Translation paper/)).not.toBeInTheDocument();
+    await userEvent.selectOptions(picker, '1706.03762');
+    expect(screen.getByText('Opens Attention Is All You Need')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: /All users/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Review message' }));
+    expect(screen.getByText('Tapping it opens Attention Is All You Need.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm send' }));
+    expect(gateway.queueAnnouncement.mock.calls[0][1]).toEqual({ title: 'New results', body: 'Take a look at this paper.', audience: 'all', recipientUids: [], analysisId: '1706.03762' });
+    expect(await screen.findAllByText('Opens Attention Is All You Need')).not.toHaveLength(0);
+  });
+});

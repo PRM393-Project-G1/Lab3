@@ -62,8 +62,10 @@ service cloud.firestore {
       allow create: if isAdmin()
         && requestId.matches('^[A-Za-z0-9_-]{20,80}$')
         && request.resource.data.keys().hasOnly([
-          'title', 'body', 'audience', 'recipientUids', 'requestedBy', 'createdAt', 'status'
+          'title', 'body', 'audience', 'recipientUids', 'requestedBy', 'createdAt', 'status', 'analysisId'
         ])
+        && (!('analysisId' in request.resource.data)
+          || (request.resource.data.analysisId is string && request.resource.data.analysisId.matches('^[0-9]{4}[.][0-9]{4,5}$')))
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'queued'
         && request.resource.data.createdAt == request.time

@@ -110,3 +110,11 @@ def test_directory_lists_every_profile_with_auth_fields_but_never_tokens(store):
     user.delete()
     store.sync_directory()
     assert not projection.get().exists
+
+
+def test_a_linked_paper_is_stored_in_the_inbox_item(store):
+    from orchestrator.notification_worker import Announcement
+    announcement = Announcement("Title", "Body", "admin", "selected", ("emulator-link-user",), "1706.03762")
+    store.store_inbox("emulator-link-user", "emulator-link-request-12345", announcement)
+    item = store._db.document("users/emulator-link-user/notifications/admin-emulator-link-request-12345").get().to_dict()
+    assert item["analysisId"] == "1706.03762" and item["type"] == "admin_message"

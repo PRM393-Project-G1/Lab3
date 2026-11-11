@@ -99,8 +99,11 @@ class FirebaseNotificationStore:
     def store_inbox(self, uid: str, request_id: str, announcement: Announcement) -> None:
         reference = self._db.collection("users").document(uid).collection("notifications").document(f"admin-{request_id}")
         try:
-            reference.create({"title": announcement.title, "body": announcement.body, "type": ADMIN_MESSAGE,
-                "requestId": request_id, "createdAt": firestore.SERVER_TIMESTAMP, "read": False})
+            item = {"title": announcement.title, "body": announcement.body, "type": ADMIN_MESSAGE,
+                "requestId": request_id, "createdAt": firestore.SERVER_TIMESTAMP, "read": False}
+            if announcement.analysis_id:
+                item["analysisId"] = announcement.analysis_id
+            reference.create(item)
         except AlreadyExists:
             # Do not reset a user's read state if an inbox record already exists.
             pass
@@ -113,7 +116,8 @@ class FirebaseNotificationStore:
             try:
                 response = messaging.send_each_for_multicast(messaging.MulticastMessage(
                     tokens=batch, notification=messaging.Notification(title=announcement.title, body=announcement.body),
-                    data={"type": ADMIN_MESSAGE, "notificationId": f"admin-{request_id}"},
+                    data={"type": ADMIN_MESSAGE, "notificationId": f"admin-{request_id}",
+                          **({"analysisId": announcement.analysis_id} if announcement.analysis_id else {})},
                     android=messaging.AndroidConfig(priority="high", notification=messaging.AndroidNotification(tag=f"admin-{request_id}")),
                 ))
             except Exception:

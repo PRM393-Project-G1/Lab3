@@ -314,3 +314,6 @@ td > .hidden-badge, .mobile-analysis-card > .hidden-badge { display: flex; }
 .user-analyses li { display: flex; flex-direction: column; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .user-analyses li:last-child { border-bottom: 0; }
 .user-analysis-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 11px; color: #8a94a6; }
+select.form-input { background: white; }
+.preview-link, .announcement-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: #4b67a0; }
+.announcement-link { margin: -4px 0 12px; }

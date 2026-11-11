@@ -40,22 +40,34 @@ class NotificationsScreen extends StatelessWidget {
               unread: !item.read,
               onTap: () async {
                 final analysisId = await vm.open(item);
-                if (analysisId != null && context.mounted) {
-                  context.push(AppRoutes.overview(analysisId));
-                } else if (item.type == 'admin_message' && context.mounted) {
-                  await showDialog<void>(
+                if (!context.mounted) return;
+                // An admin message always shows in full; a linked paper is one tap away.
+                if (item.type == 'admin_message') {
+                  final openPaper = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
                       title: Text(item.title),
                       content: SingleChildScrollView(child: Text(item.body)),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => Navigator.pop(context, false),
                           child: const Text('Close'),
                         ),
+                        if (analysisId != null)
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Open paper'),
+                          ),
                       ],
                     ),
                   );
+                  if (openPaper == true &&
+                      analysisId != null &&
+                      context.mounted) {
+                    context.push(AppRoutes.overview(analysisId));
+                  }
+                } else if (analysisId != null) {
+                  context.push(AppRoutes.overview(analysisId));
                 }
               },
             );
