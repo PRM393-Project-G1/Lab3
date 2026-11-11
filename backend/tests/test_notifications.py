@@ -21,8 +21,10 @@ class FakeNotificationStore:
         self.crash_push = False
         self.revoke_after_first = False
         self.synced = 0
+        self.heartbeats = []
 
     def sync_directory(self): self.synced += 1
+    def heartbeat(self, name, fields): self.heartbeats.append((name, fields["state"]))
     def interrupt_stale(self): pass
     def queued_ids(self): return [key for key, value in self.requests.items() if value["status"] == "queued"]
     def claim(self, request_id, owner):
@@ -152,4 +154,5 @@ def test_standalone_loop_stops_without_leaving_a_pending_task():
         stop.set()
         await asyncio.wait_for(task, timeout=1)
         assert store.synced == 1
+        assert store.heartbeats == [("notifications", "running"), ("notifications", "stopped")]
     asyncio.run(scenario())

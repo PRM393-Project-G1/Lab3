@@ -107,3 +107,18 @@ describe('insights page', () => {
     expect(screen.getByRole('link', { name: 'Insights' })).toHaveAttribute('aria-current', 'page');
   });
 });
+
+describe('worker liveness', () => {
+  it('needs three missed beats and at least three minutes before a running worker is offline', async () => {
+    const { liveness, parseWorker, timeAgo } = await import('../src/domain/workers');
+    const now = new Date(2026, 10, 11, 12, 0);
+    const seen = (minutes: number, extra = {}) => parseWorker('backend', { state: 'running', lastSeen: new Date(now.getTime() - minutes * 60000), ...extra });
+    expect(liveness(seen(2.5), now)).toBe('online');
+    expect(liveness(seen(4), now)).toBe('offline');
+    expect(liveness(seen(4, { intervalSeconds: 120 }), now)).toBe('online');
+    expect(liveness(seen(0, { state: 'stopped' }), now)).toBe('stopped');
+    expect(liveness(undefined, now)).toBe('never');
+    expect(liveness(parseWorker('backend', { state: 'running' }), now)).toBe('never');
+    expect(timeAgo(new Date(now.getTime() - 3 * 3600000), now)).toBe('3 h ago');
+  });
+});

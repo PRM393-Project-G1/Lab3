@@ -6,6 +6,8 @@ import { Dashboard } from './pages/Dashboard';
 import { AnalysisDetail } from './pages/AnalysisDetail';
 import { Insights } from './pages/Insights';
 import { Notifications } from './pages/Notifications';
+import { SystemIndicator } from './components/SystemIndicator';
+import { useWorkers } from './hooks/useWorkers';
 
 /** Sidebar order; the first entry is the workspace root. */
 const sections: { path: string; label: string; icon: LucideIcon }[] = [
@@ -113,6 +115,7 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [failure, setFailure] = useState('');
+  const system = useWorkers(gateway);
   const location = useLocation();
   const base = demo ? '/demo' : '/';
   const prefix = demo ? '/demo' : '';
@@ -137,14 +140,14 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
     </aside>
     <div className="workspace-body"><header className="workspace-header"><div className="header-left"><button className="icon-button mobile-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
       <span className="breadcrumb">Workspace<span>/</span><strong>{detail ? 'Paper details' : section.label}</strong></span></div>
-      <span className={`workspace-badge ${demo ? 'demo' : ''}`}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}{demo ? 'Demo workspace' : 'Admin access'}</span></header>
+      <div className="header-right"><SystemIndicator system={system} /><span className={`workspace-badge ${demo ? 'demo' : ''}`}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}{demo ? 'Demo workspace' : 'Admin access'}</span></div></header>
       {demo && <div className="demo-banner"><span><FlaskConical size={15} /><strong>Sample data</strong><span className="demo-description">Explore freely. This workspace is separate from Firebase.</span></span><Link to="/">Connect real data<ArrowUpRight size={14} /></Link></div>}
       {failure && <p role="alert" className="form-error workspace-error">{failure}</p>}
       <main className="main-content" id="main-content" tabIndex={-1}><Routes>
-        <Route index element={<Dashboard gateway={gateway} demo={demo} />} />
+        <Route index element={<Dashboard gateway={gateway} demo={demo} system={system} />} />
         <Route path="analyses/:analysisId" element={<AnalysisDetail gateway={gateway} />} />
         <Route path="insights" element={<Insights gateway={gateway} demo={demo} />} />
-        <Route path="notifications" element={<Notifications gateway={gateway} demo={demo} />} />
+        <Route path="notifications" element={<Notifications gateway={gateway} demo={demo} system={system} />} />
         <Route path="*" element={<StatePanel title="Page not found"><Link to={base} className="button secondary">Go to overview</Link></StatePanel>} />
       </Routes></main>
     </div>

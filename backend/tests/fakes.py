@@ -24,6 +24,7 @@ class FakeStore:
         self.notifications: list[tuple[str, str, str, str]] = []
         self.interrupted_checks = 0
         self.fail_notify = False
+        self.heartbeats: list[tuple[str, dict[str, Any]]] = []
 
     def get_analysis(self, analysis_id: str) -> dict[str, Any] | None:
         return self.analyses.get(analysis_id)
@@ -37,6 +38,9 @@ class FakeStore:
 
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self.update_analysis(analysis_id, fields)
+
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
+        self.heartbeats.append((name, dict(fields)))
 
     def fail_interrupted(self) -> int:
         self.interrupted_checks += 1

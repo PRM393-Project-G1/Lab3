@@ -177,6 +177,10 @@ class JobManager:
         self._slots = asyncio.Semaphore(parallel)
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
+    @property
+    def running(self) -> int:
+        return len(self._tasks)
+
     def is_running(self, analysis_id: str) -> bool:
         return analysis_id in self._tasks
 

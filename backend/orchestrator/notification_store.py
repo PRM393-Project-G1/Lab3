@@ -10,6 +10,7 @@ from firebase_admin import firestore, messaging
 from google.api_core.exceptions import AlreadyExists
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from .heartbeat import WORKER_STATUS
 from .notification_worker import ADMIN_MESSAGE, DIRECTORY, REQUESTS, Announcement, PushResult
 
 
@@ -133,3 +134,6 @@ class FirebaseNotificationStore:
             transaction.update(reference, values)
 
         update(self._db.transaction())
+
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
+        self._db.collection(WORKER_STATUS).document(name).set({**fields, "lastSeen": firestore.SERVER_TIMESTAMP}, merge=True)

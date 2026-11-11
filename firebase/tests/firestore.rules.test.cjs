@@ -135,3 +135,13 @@ test('directory is admin-readable and server-writable without exposing profiles'
   await assertFails(setDoc(doc(admin, 'adminUserDirectory/injected'), { displayName: 'Fake' }));
   await assertFails(getDoc(doc(admin, 'users/user')));
 });
+
+test('worker status is admin-readable and only the server writes it', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'workerStatus/backend'), { state: 'running', lastSeen: new Date() });
+  });
+  await assertSucceeds(getDocs(collection(admin, 'workerStatus')));
+  await assertFails(getDoc(doc(user, 'workerStatus/backend')));
+  await assertFails(setDoc(doc(admin, 'workerStatus/backend'), { state: 'running', lastSeen: serverTimestamp() }));
+  await assertFails(setDoc(doc(user, 'workerStatus/notifications'), { state: 'running' }));
+});

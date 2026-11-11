@@ -7,6 +7,8 @@ import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel, StatusBadge, formatDate } from '../components/ui';
 import { useCompactLayout } from '../hooks/useCompactLayout';
+import type { SystemStatus } from '../hooks/useWorkers';
+import { WorkerNotice } from '../components/SystemIndicator';
 
 const pageSize = 8;
 const filters: { value: AnalysisFilter; label: string }[] = [
@@ -16,7 +18,7 @@ const filters: { value: AnalysisFilter; label: string }[] = [
 ];
 type FeedState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; feed: AnalysisFeed };
 
-export function Dashboard({ gateway, demo }: { gateway: AdminGateway; demo: boolean }) {
+export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; demo: boolean; system: SystemStatus }) {
   const compact = useCompactLayout();
   const [state, setState] = useState<FeedState>({ status: 'loading' });
   const [retry, setRetry] = useState(0);
@@ -74,6 +76,7 @@ export function Dashboard({ gateway, demo }: { gateway: AdminGateway; demo: bool
         <strong>{value.toLocaleString('en')}</strong><span className="metric-note">{note}</span>
       </section>)}</div>
       {!demo && state.feed.fromCache && <div className="notice">Showing cached data. Live updates will resume when the connection is restored.</div>}
+      {summary.running > 0 && <WorkerNotice system={system} name="backend">{(when) => `${when}. ${summary.running} queued or processing ${summary.running === 1 ? 'analysis' : 'analyses'} will not progress until it runs again.`}</WorkerNotice>}
       <section className="analyses-panel" aria-label="Paper analyses">
         <div className="panel-heading"><div className="panel-title"><BookOpen size={19} /><h2>Paper analyses</h2><span className="count-pill">{summary.total}</span></div>
           <span className="panel-caption">Newest first</span></div>

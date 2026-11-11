@@ -7,6 +7,7 @@ import { parseAnalysis, type AnalysisFeed } from '../src/domain/analysis';
 import type { AdminGateway, AdminUser } from '../src/services/gateway';
 import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } from '../src/domain/notifications';
 import { normalizeDraft, parseAnnouncement } from '../src/domain/notifications';
+import { parseWorker, type WorkerStatus } from '../src/domain/workers';
 
 class FakeGateway implements AdminGateway {
   recipients: NotificationRecipient[] = [
@@ -46,6 +47,8 @@ class FakeGateway implements AdminGateway {
   watchAnalyses = vi.fn<AdminGateway['watchAnalyses']>((next, error) => {
     this.feedNext = next; this.feedError = error; queueMicrotask(() => next(this.feed)); return this.stopFeed;
   });
+  workers: WorkerStatus[] = [parseWorker('backend', { state: 'running', lastSeen: new Date() }), parseWorker('notifications', { state: 'running', lastSeen: new Date() })];
+  watchWorkers = vi.fn<AdminGateway['watchWorkers']>((next) => { queueMicrotask(() => next(this.workers)); return () => {}; });
   getWeakRule = vi.fn<AdminGateway['getWeakRule']>(async () => ({ threshold: 0.5, minRefs: 3 }));
   getResults = vi.fn<AdminGateway['getResults']>(async (id) => ({
     analysis: this.feed.analyses.find((a) => a.id === id)!, references: [], topics: [], weakRule: { threshold: 0.5, minRefs: 3 },
@@ -264,5 +267,32 @@ describe('dashboard interactions', () => {
     await userEvent.click(screen.getByRole('link', { name: 'Exit demo' }));
     await screen.findByText('Connect your Firebase Web app');
     await waitFor(() => expect(screen.queryByText('Attention Is All You Need')).not.toBeInTheDocument());
+  });
+});
+
+describe('background service status', () => {
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60000);
+
+  it('shows both services online in the header without any warning', async () => {
+    const gateway = new FakeGateway(); open(gateway);
+    await screen.findByText('Attention Is All You Need');
+    expect(await screen.findByLabelText(/^Backend online\./)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Notification worker online\./)).toBeInTheDocument();
+    expect(screen.queryByText(/will not progress/)).not.toBeInTheDocument();
+  });
+
+  it('warns on the overview when the backend is silent while analyses are queued', async () => {
+    const gateway = new FakeGateway();
+    gateway.workers = [parseWorker('backend', { state: 'running', lastSeen: minutesAgo(12) })];
+    open(gateway);
+    expect(await screen.findByText(/Backend is offline \(last heartbeat 12 min ago\)\. 1 queued or processing analysis will not progress/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Notification worker not seen yet\./)).toBeInTheDocument();
+  });
+
+  it('explains on the notifications page that requests wait for a stopped worker', async () => {
+    const gateway = new FakeGateway();
+    gateway.workers = [parseWorker('notifications', { state: 'stopped', lastSeen: minutesAgo(1) })];
+    open(gateway, '/notifications');
+    expect(await screen.findByText(/Notification worker is stopped .* New messages stay queued/)).toBeInTheDocument();
   });
 });

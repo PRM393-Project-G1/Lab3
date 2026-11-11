@@ -1,5 +1,6 @@
 import { buildTopicTree, counts, parseAnalysis, parseReference, parseTopic, type AnalysisResults, type TopicNode, type TopicStat } from '../domain/analysis';
 import type { AdminGateway } from './gateway';
+import { parseWorker } from '../domain/workers';
 import { normalizeDraft, parseAnnouncement, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 
 const demoRecipients: NotificationRecipient[] = [
@@ -100,6 +101,14 @@ export const demoGateway: AdminGateway = {
   watchAnalyses(next) { next({ analyses, fromCache: false }); return () => {}; },
   async getResults(id) { return results(id); },
   async getWeakRule() { return { threshold: 0.5, minRefs: 3 }; },
+  watchWorkers(next) {
+    // Sample processes that always look alive, refreshed like real heartbeats.
+    const emit = () => next(['backend', 'notifications'].map((name) => parseWorker(name, {
+      state: 'running', lastSeen: new Date(), startedAt: new Date(anchor - 86400000), version: 'demo', runningJobs: name === 'backend' ? 1 : null })));
+    emit();
+    const timer = setInterval(emit, 30000);
+    return () => clearInterval(timer);
+  },
   watchRecipients(next) { next(demoRecipients); return () => {}; },
   watchAnnouncements(next) { announcementObservers.add(next); next([...announcements]); return () => { announcementObservers.delete(next); }; },
   async queueAnnouncement(id, raw) {

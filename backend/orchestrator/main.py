@@ -19,6 +19,7 @@ from .ports import AnalysisSteps, AnalysisStore
 from .steps import Steps
 from .uploads import CloudinarySigner
 from .notification_worker import NotificationWorker
+from .heartbeat import Heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 _ARXIV_ID = re.compile(r"^\d{4}\.\d{4,5}$")
 # No slash, so the name cannot leave the user's folder.
 _REPORT_FILE = re.compile(r"^[A-Za-z0-9_.-]{1,100}\.pdf$")
+# The API process, which also runs jobs; the notification worker reports separately.
+BACKEND_HEARTBEAT = "backend"
 
 
 class StartRequest(BaseModel):
@@ -54,13 +57,19 @@ def create_app(
             logger.warning("Marked %d interrupted analyses as failed", interrupted)
         stop_notifications = asyncio.Event()
         notification_task = asyncio.create_task(notifications.run(stop_notifications)) if notifications else None
+        stop_heartbeat = asyncio.Event()
+        manager = app.state.manager
+        heartbeat_task = asyncio.create_task(Heartbeat(
+            BACKEND_HEARTBEAT, store.heartbeat, extra=lambda: {"runningJobs": manager.running}).run(stop_heartbeat))
         try:
             yield
         finally:
             # Let a push attempt finish instead of cancelling midway and losing its outcome.
             stop_notifications.set()
+            stop_heartbeat.set()
             if notification_task:
                 await notification_task
+            await heartbeat_task
             # What was running is marked as interrupted on the next start.
             await app.state.manager.cancel_all()
 

@@ -6,6 +6,7 @@ import { parseAnalysis, parseReference, parseTopic, type WeakRule } from '../dom
 import type { AdminGateway } from './gateway';
 import { invalidWebAppId, missingConfig, requiredConfig } from './firebaseConfig';
 import { normalizeDraft, parseAnnouncement, validateDraft } from '../domain/notifications';
+import { parseWorker } from '../domain/workers';
 
 let gateway: AdminGateway | undefined;
 
@@ -93,6 +94,7 @@ export function getFirebaseGateway(): AdminGateway {
         fromCache: snapshot.metadata.fromCache });
     }, error),
     getWeakRule: weakRule,
+    watchWorkers: (next, error) => onSnapshot(collection(db, 'workerStatus'), (snapshot) => next(snapshot.docs.map((item) => parseWorker(item.id, item.data()))), error),
     async getResults(id) {
       const [paper, references, topics, rule] = await Promise.all([
         getDoc(doc(db, 'analyses', id)),

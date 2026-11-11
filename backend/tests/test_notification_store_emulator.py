@@ -88,3 +88,12 @@ def test_push_chunks_are_bounded_and_invalid_tokens_are_removed(store, monkeypat
     assert batches[0].data["type"] == "admin_message"
     remaining = store._db.document("users/emulator-push-user").get().to_dict()["fcmTokens"]
     assert tokens[0] not in remaining and tokens[500] not in remaining
+
+
+def test_heartbeat_merges_fields_and_stamps_server_time(store):
+    reference = store._db.collection("workerStatus").document("notifications")
+    store.heartbeat("notifications", {"state": "running", "version": "test"})
+    first = reference.get().to_dict()
+    assert first["state"] == "running" and isinstance(first["lastSeen"], datetime)
+    store.heartbeat("notifications", {"state": "stopped"})
+    assert reference.get().to_dict() | {"lastSeen": None} == {"state": "stopped", "version": "test", "lastSeen": None}

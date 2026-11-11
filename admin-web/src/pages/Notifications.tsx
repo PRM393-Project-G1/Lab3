@@ -4,12 +4,14 @@ import { normalizeDraft, validateDraft, type AnnouncementDraft, type Announcemen
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel, formatDate } from '../components/ui';
+import { WorkerNotice } from '../components/SystemIndicator';
+import type { SystemStatus } from '../hooks/useWorkers';
 
 type LoadState<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T };
 const stateLabels = { queued: 'Queued', processing: 'Processing', completed: 'Completed', partial: 'Needs review',
   failed: 'Failed', interrupted: 'Interrupted', unknown: 'Unknown' };
 
-export function Notifications({ gateway, demo }: { gateway: AdminGateway; demo: boolean }) {
+export function Notifications({ gateway, demo, system }: { gateway: AdminGateway; demo: boolean; system: SystemStatus }) {
   const [recipients, setRecipients] = useState<LoadState<NotificationRecipient[]>>({ status: 'loading' });
   const [history, setHistory] = useState<LoadState<AnnouncementRequest[]>>({ status: 'loading' });
   const [retry, setRetry] = useState(0);
@@ -78,6 +80,7 @@ export function Notifications({ gateway, demo }: { gateway: AdminGateway; demo: 
   return <>
     <div className="page-heading"><div><div className="eyebrow">KEEP USERS INFORMED</div><h1>Notifications<span className="heading-dot">.</span></h1>
       <p>Send a short update to everyone, or just the people you choose.</p></div><span className="workspace-badge"><Bell size={14} />Admin announcements</span></div>
+    <WorkerNotice system={system} name="notifications">{(when) => `${when}. New messages stay queued and the recipient list stops updating until it runs again.`}</WorkerNotice>
     {success && <div className="send-success" role="status"><CheckCircle2 size={17} />{success}</div>}
     {problem && !confirmation && <p role="alert" className="form-error">{problem}</p>}
     <div className="notification-grid"><section className="detail-panel compose-panel"><h2>Compose a message</h2>

@@ -16,6 +16,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Liveness written by the backend processes with the Admin SDK.
+    match /workerStatus/{name} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /adminNotificationRequests/{requestId} {
       allow read: if isAdmin();
       allow create: if isAdmin()

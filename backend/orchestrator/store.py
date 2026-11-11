@@ -10,6 +10,7 @@ import firebase_admin
 from firebase_admin import auth, exceptions, firestore, messaging
 
 from .contract import DONE, DONE_TYPE, FAILED, QUEUED, RUNNING
+from .heartbeat import WORKER_STATUS
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,9 @@ class FirebaseStore:
 
     def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self._analysis(analysis_id).set(fields, merge=True)
+
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
+        self._db.collection(WORKER_STATUS).document(name).set({**fields, "lastSeen": firestore.SERVER_TIMESTAMP}, merge=True)
 
     def completed_analyses(self) -> Iterable[tuple[str, dict[str, Any]]]:
         query = self._db.collection("analyses").where(filter=firestore.FieldFilter("status", "==", DONE))

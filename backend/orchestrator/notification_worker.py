@@ -10,10 +10,13 @@ import uuid
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
+from .heartbeat import Heartbeat
+
 logger = logging.getLogger(__name__)
 ADMIN_MESSAGE = "admin_message"
 REQUESTS = "adminNotificationRequests"
 DIRECTORY = "adminUserDirectory"
+HEARTBEAT_NAME = "notifications"
 
 
 @dataclass(frozen=True)
@@ -78,6 +81,7 @@ class NotificationStore(Protocol):
     def store_inbox(self, uid: str, request_id: str, announcement: Announcement) -> None: ...
     def send_push(self, uid: str, tokens: list[str], request_id: str, announcement: Announcement) -> PushResult: ...
     def update(self, request_id: str, owner: str, fields: dict[str, Any]) -> None: ...
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None: ...
 
 
 class NotificationWorker:
@@ -156,15 +160,23 @@ class NotificationWorker:
             })
 
     async def run(self, stop: asyncio.Event) -> None:
-        while not stop.is_set():
-            try:
-                await asyncio.to_thread(self.tick)
-            except Exception:
-                logger.exception("Announcement worker could not complete its poll")
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=self._poll_seconds)
-            except TimeoutError:
-                pass
+        heartbeat = asyncio.create_task(Heartbeat(HEARTBEAT_NAME, self._store.heartbeat).run(stop))
+        try:
+            while not stop.is_set():
+                try:
+                    await asyncio.to_thread(self.tick)
+                except Exception:
+                    logger.exception("Announcement worker could not complete its poll")
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=self._poll_seconds)
+                except TimeoutError:
+                    pass
+        finally:
+            # A clean stop lets the heartbeat record "stopped"; a cancellation cannot wait for it.
+            if stop.is_set():
+                await heartbeat
+            else:
+                heartbeat.cancel()
 
 
 def main() -> None:
