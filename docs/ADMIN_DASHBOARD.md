@@ -2,7 +2,7 @@
 
 Admin là website riêng trong [`admin-web/`](../admin-web/), mở bằng trình duyệt laptop. App Flutter Android tiếp tục phục vụ user. Web dùng cùng Firebase Authentication, Firestore và quy tắc phân quyền của dự án. Theo dõi bài báo không cần backend đang chạy; chức năng gửi thông báo cần worker xử lý hàng đợi Firestore.
 
-[Ảnh preview web](images/admin-dashboard-web-preview.png) được chụp bằng Chromium với dữ liệu minh họa, không phải kết quả Firebase thật.
+[Ảnh preview web](images/admin-dashboard-web-preview.png) và [ảnh trang Insights](images/admin-insights-web-preview.png) được chụp bằng Chromium với dữ liệu minh họa, không phải kết quả Firebase thật.
 
 ## 1. Chạy thử ngay, chưa cần cấu hình Firebase
 
@@ -32,9 +32,26 @@ Demo có 12 bản ghi minh họa và nhãn **Sample data** trên mọi màn. D�
 | Reference detail | Mở từng reference để xem lỗi, bảng Cited/Actual và link nguồn nếu có |
 | Trạng thái giao diện | Loading, rỗng, không khớp tìm kiếm, lỗi + Retry, dữ liệu cache, ID không hợp lệ và trang không tồn tại |
 | Bố cục | Sidebar và bảng cho laptop, menu thu gọn và danh sách card trên màn nhỏ |
-| Notifications | Gửi tất cả user hoặc chọn tối đa 100 người; xem lại trước khi gửi và theo dõi lịch sử xử lý |
+| Lọc theo người yêu cầu và chế độ | Chọn một user hoặc AI-assisted/Standard; cột ngày hiển thị người yêu cầu |
+| Xuất CSV | Xuất đúng các dòng đang lọc (mọi trang), UTF-8, chặn ô bắt đầu bằng `=`, `+`, `-`, `@` |
+| Job bị treo | Nhãn **No progress** khi bài Processing không có tiến độ 40 phút hoặc Queued quá 2 giờ; nút lọc **Stalled** |
+| Insights | Bộ lọc 7/30/90 ngày hoặc toàn bộ; số bài, tỷ lệ thành công, tỷ lệ reference bịa, thời gian xử lý trung bình; biểu đồ số bài theo ngày, phân bố trạng thái reference, chủ đề yếu hay gặp, lý do lỗi hay gặp, các bài chạy lâu nhất; mỗi biểu đồ có bảng số liệu |
+| Thao tác trên bài | Ở trang chi tiết: dừng bài đang chạy, chạy lại bài lỗi/đã dừng/đã ẩn, ẩn kết quả sai kèm lý do, hiện lại, xóa vĩnh viễn |
+| Users | Danh sách mọi hồ sơ với role, trạng thái, lần đăng nhập cuối, số bài; trang từng user có các bài của họ, cấp/thu quyền admin, khóa/mở khóa tài khoản |
+| Trạng thái backend | Header hiển thị Backend và Notification worker online/offline theo heartbeat; Overview và Notifications báo khi việc đang chờ một tiến trình đã tắt |
+| Notifications | Gửi tất cả user hoặc tối đa 100 người, có nhóm chọn nhanh; gắn link tới một bài; gửi ngay hoặc hẹn giờ; hủy yêu cầu chưa xử lý; xem tỷ lệ đã mở |
+| Activity log | Dòng thời gian mọi thao tác admin và thông báo: ai làm, với bài/user/tin nào, lý do và kết quả; lọc theo loại và admin; xuất CSV |
 
-Phần bài báo chỉ theo dõi và đọc kết quả. Web không chạy phân tích, dừng job, retry job, sửa role hay xóa bài. Công việc phân tích vẫn do app user và backend hiện tại xử lý. Phần [Notifications và hosting](ADMIN_NOTIFICATIONS.md) có hướng dẫn riêng, gồm worker nhẹ để thử gửi mà không cần chạy toàn bộ pipeline phân tích.
+Web không gọi backend trực tiếp. Mỗi thao tác là một tài liệu `adminActions/{id}` trạng thái `queued`; tiến trình API của backend (chạy cùng job manager) đọc hàng đợi khoảng 10 giây một lần, kiểm tra lại role của người yêu cầu, thực hiện bằng Admin SDK rồi ghi kết quả. Backend tắt thì yêu cầu nằm ở **Waiting for backend** và header báo Backend offline. Phần [Notifications và hosting](ADMIN_NOTIFICATIONS.md) có hướng dẫn riêng.
+
+| Thao tác | Điều kiện backend kiểm tra |
+|---|---|
+| Stop analysis | Bài đang Queued/Processing; app của người yêu cầu hiện "Stopped by an administrator." |
+| Run again | Bài Failed, Cancelled hoặc Completed đã ẩn; giữ người yêu cầu và chế độ AI ban đầu |
+| Hide results / Show results again | Chỉ bài Completed; app hiện "Removed" ở lịch sử và lý do ở trang Overview |
+| Delete analysis | Không đang chạy; xóa analysis, references và topics; user có thể yêu cầu lại |
+| Make admin / Remove admin access | Không tự đổi role của mình; luôn còn ít nhất một admin; tài khoản bị khóa phải mở khóa trước |
+| Disable / Enable account | Không khóa admin; khóa bằng Firebase Auth và thu hồi phiên, user bị đăng xuất trong vòng một giờ, API từ chối token của họ |
 
 ## 3. Kết nối Firebase thật sau
 
@@ -72,7 +89,7 @@ Sau khi build, các giá trị `VITE_*` được đóng gói vào frontend. `.en
 
 - Đăng nhập Google một lần. Nếu hồ sơ chưa tồn tại, web chỉ tạo `users/{uid}` với role mặc định `user`.
 - Tài khoản chưa có quyền sẽ thấy **Admin access required** và UID của mình; không query danh sách phân tích.
-- Người quản trị Firebase sửa `users/{uid}.role` thành chuỗi **`admin`** viết thường trong Console.
+- Admin đầu tiên phải được cấp trong Console: sửa `users/{uid}.role` thành chuỗi **`admin`** viết thường. Từ admin thứ hai trở đi, dùng trang **Users → Make admin** (cần backend đang chạy).
 - Web theo dõi role realtime; sau khi cấp quyền, tài khoản được vào dashboard. Đổi role về `user` sẽ đóng dashboard và hủy theo dõi danh sách.
 - Đăng xuất hoặc đổi tài khoản sẽ bỏ dữ liệu đang hiển thị. Callback role đến muộn từ tài khoản cũ không được dùng để cấp quyền cho tài khoản mới.
 
@@ -89,6 +106,16 @@ Publish nội dung [`firebase/firestore.rules`](../firebase/firestore.rules) lê
 | Tự cấp hoặc đổi role | Bị từ chối |
 | Đọc danh sách user đã đồng bộ và lịch sử thông báo admin | Chỉ admin; danh sách không chứa token hoặc toàn bộ hồ sơ riêng |
 | Tạo yêu cầu gửi thông báo | Chỉ admin, chỉ tạo trạng thái `queued` cho chính mình; backend ghi kết quả |
+| Hủy yêu cầu thông báo | Chỉ admin, chỉ khi còn `queued`, chỉ đổi sang `cancelled` |
+| Tạo thao tác `adminActions` | Chỉ admin, đúng loại và đích (arXiv ID hoặc UID), không nhắm vào chính mình; không sửa/xóa sau khi tạo |
+| Đọc `workerStatus` | Chỉ admin; chỉ backend ghi |
+
+Sau khi cập nhật code, publish cả Rules và index (index collection group cho tỷ lệ đã đọc):
+
+```bash
+cd firebase
+npx firebase-tools deploy --only firestore:rules,firestore:indexes --project realtron-874ac
+```
 
 Web không giữ service account và không gọi Firebase Admin SDK. Role được đọc từ Firestore, không dựa vào email viết cứng hoặc một nút bật admin trong trình duyệt.
 
@@ -98,15 +125,22 @@ Web không giữ service account và không gọi Firebase Admin SDK. Role đư�
 admin-web/
 ├── src/App.tsx                 Đăng nhập, kiểm tra quyền, layout và routing
 ├── src/hooks/useAccess.ts      Theo dõi tài khoản/role, bỏ callback cũ
-├── src/domain/analysis.ts      Contract dữ liệu, thống kê, lọc và quy tắc Weak
+├── src/domain/analysis.ts      Contract dữ liệu, thống kê, lọc, job treo và quy tắc Weak
+├── src/domain/insights.ts      Số liệu cho trang Insights
+├── src/domain/actions.ts       Hàng đợi thao tác admin: loại, kiểm tra, thao tác hợp lệ
+├── src/domain/users.ts         Danh sách user và hoạt động theo người
+├── src/domain/audit.ts         Gộp thao tác và thông báo thành Activity log
+├── src/domain/segments.ts      Nhóm chọn nhanh người nhận
+├── src/domain/workers.ts       Heartbeat và trạng thái online/offline
+├── src/domain/csv.ts           Xuất CSV an toàn
 ├── src/domain/notifications.ts Contract thông báo, người nhận và thống kê gửi
 ├── src/services/
 │   ├── gateway.ts              Interface dùng chung cho dữ liệu thật và demo
 │   ├── firebaseConfig.ts       Kiểm tra cấu hình Web
 │   ├── firebaseGateway.ts      Firebase Auth, Firestore, Remote Config
 │   └── demoGateway.ts          Fixture riêng, không kết nối Firebase
-├── src/pages/                  Dashboard, chi tiết analysis và Notifications
-├── src/components/             Trạng thái, badge và định dạng ngày
+├── src/pages/                  Overview, Insights, chi tiết analysis, Users, Notifications, Activity log
+├── src/components/             Biểu đồ, khung thao tác admin, trạng thái backend, badge
 ├── tests/                      Unit/component test
 └── e2e/                        Test trình duyệt Playwright
 ```
@@ -133,7 +167,7 @@ npm run test:e2e
 
 Playwright mở server tạm trên port 5174 bằng mode `e2e`, vô hiệu hóa cấu hình Firebase thật trong bundle test dù `.env.local` đã được điền. Các test kiểm tra fixture demo trên viewport laptop/mobile: lọc, tìm kiếm, phân trang, xem topic/reference, lỗi analysis, reload URL chi tiết, trang không tồn tại và gửi thông báo ở cả hai chế độ. Không xác nhận Google OAuth hoặc dữ liệu Firebase thật.
 
-Kết quả kiểm tra ngày 11/11/2026: build production và TypeScript pass; 21 unit/component tests pass; 6 browser tests trên Chromium desktop/mobile pass. Lỗi `API_KEY_INVALID` ở lần kết nối đầu tiên được đối chiếu với config dạng text: API key đã bị chép nhầm một ký tự từ ảnh và đã sửa trong `.env.local`. Người dùng đã xác nhận kết nối hoạt động sau khi sửa; các test tự động vẫn dùng adapter giả hoặc demo.
+Kết quả kiểm tra ngày 12/11/2026, sau khi thêm các tính năng quản trị: TypeScript pass; 65 unit/component tests pass; 8 browser tests trên Chromium desktop/mobile pass. Ngày 11/11/2026: build production pass; 21 unit/component tests và 6 browser tests pass. Lỗi `API_KEY_INVALID` ở lần kết nối đầu tiên được đối chiếu với config dạng text: API key đã bị chép nhầm một ký tự từ ảnh và đã sửa trong `.env.local`. Người dùng đã xác nhận kết nối hoạt động sau khi sửa; các test tự động vẫn dùng adapter giả hoặc demo.
 
 ### Khi đăng nhập gặp lỗi cấu hình
 
@@ -147,6 +181,13 @@ Test Rules giữ tại `firebase/tests/`, chạy bằng `npm run test:rules` sau
 
 ## 8. Giới hạn
 
-Để giữ dashboard nhỏ cho bài demo, web theo dõi toàn bộ collection `analyses`, tính thống kê và phân trang hiển thị tại client. Khi dữ liệu lớn cần phân trang truy vấn và thống kê phía server. Trang chi tiết tải snapshot theo lần mở; quay lại overview để xem tiến độ realtime.
+Để giữ dashboard nhỏ cho bài demo, web theo dõi toàn bộ collection `analyses`, tính thống kê, biểu đồ và phân trang tại client. Khi dữ liệu lớn cần phân trang truy vấn và thống kê phía server. Trang chi tiết tải snapshot theo lần mở và tải lại khi một thao tác admin kết thúc; quay lại overview để xem tiến độ realtime.
+
+- Thao tác admin và thông báo cần backend đang chạy; web chỉ xếp hàng yêu cầu.
+- Chủ đề yếu cần `topicSummary` do backend ghi khi phân tích xong. Bài phân tích trước bản cập nhật cần chạy `python -m orchestrator.backfill` một lần trong `backend/`.
+- Job treo dựa trên `updatedAt` mà backend ghi từ bản này; bài cũ dùng thời điểm yêu cầu.
+- Mỗi analysis chỉ lưu người yêu cầu gần nhất, nên "bài của user" là các bài họ yêu cầu lần cuối.
+- Activity log hiển thị 100 thao tác và 30 thông báo gần nhất. Thay đổi làm trực tiếp trong Firebase Console không đi qua hàng đợi nên không có trong log.
+- Khóa tài khoản có hiệu lực ngay với API backend; phiên đang mở trong app hết hạn trong vòng một giờ.
 
 Đã chuẩn bị `admin-web/firebase.json` cho Firebase Hosting, có SPA fallback về `index.html` để reload URL chi tiết hoạt động. Xem [hướng dẫn hosting](ADMIN_NOTIFICATIONS.md#6-host-web-lên-firebase-hosting). Chưa deploy website hoặc publish Rules mới lên Firebase thật trong lần triển khai tính năng thông báo này.

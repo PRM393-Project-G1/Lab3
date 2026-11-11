@@ -156,11 +156,17 @@ sequenceDiagram
 | `users/{uid}/library/{arxivId}` | `customTitle`, `addedAt`, `lastOpenedAt` | App |
 | `users/{uid}/reports/{id}` | `analysisId`, `storagePath`, `downloadUrl`, `sizeKb`, `createdAt`. Chỉ ghi khi `enable_cloud_upload` bật | App |
 | `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId` (analysis_done) hoặc `requestId` (admin_message), `createdAt`, `read` | Backend; app chỉ đổi `read` |
-| `adminUserDirectory/{uid}` | `displayName`, `hasDevice`, `updatedAt` | Worker; admin chỉ đọc, không chứa token |
-| `adminNotificationRequests/{id}` | `title`, `body`, `audience`, `recipientUids[]`, `requestedBy`, `createdAt`, `status`, `counts`, `error` | Admin chỉ tạo queued; worker claim và ghi kết quả |
-| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `finishedAt`, `error` | Backend |
+| `adminUserDirectory/{uid}` | `displayName`, `hasDevice`, `role`, `email`, `disabled`, `createdAt`, `lastSignInAt`, `updatedAt` | Worker (từ hồ sơ và Firebase Auth); admin chỉ đọc, không chứa token |
+| `adminNotificationRequests/{id}` | `title`, `body`, `audience`, `recipientUids[]`, `analysisId?`, `sendAt?`, `requestedBy`, `createdAt`, `status`, `counts`, `error`, `readCount`, `readCheckedAt` | Admin tạo queued hoặc hủy khi còn queued; worker claim và ghi kết quả |
+| `adminActions/{id}` | `type`, `target`, `requestedBy`, `createdAt`, `status`, `reason?`, `role?`, `disabled?`, `result`, `error`, `finishedAt` | Admin chỉ tạo queued; tiến trình API claim, thực hiện và ghi kết quả. Đồng thời là audit log |
+| `workerStatus/{backend,notifications}` | `state`, `lastSeen`, `startedAt`, `version`, `intervalSeconds`, `runningJobs` | Backend ghi heartbeat khoảng mỗi phút; admin chỉ đọc |
+| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `updatedAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `topicSummary[]`, `hidden`, `hiddenReason`, `hiddenBy`, `hiddenAt`, `finishedAt`, `error` | Backend |
 | `analyses/{id}/references/{refId}` | `index`, `title`, `authors[]`, `year`, `venue`, `url`, `status`, `issues[]`, `hallucination`, `textSource`, `topicIds[]` | Backend |
 | `analyses/{id}/topics/{topicId}` | `term`, `parentId`, `depth`, `score`, `refIds[]`, `counts` | Backend |
+
+`topicSummary` là danh sách `{term, depth, total, flagged}` của các chủ đề có reference Error/Hallucinated, để web xếp hạng chủ đề yếu mà không đọc từng subcollection `topics`. `hidden = true` nghĩa là admin đã ẩn kết quả; app hiện "Removed" và lý do thay cho kết quả.
+
+Luồng thao tác admin: web tạo `adminActions/{id}` → tiến trình API claim bằng transaction → kiểm tra lại role → dừng/chạy lại/ẩn/xóa analysis, đổi role hoặc khóa tài khoản bằng Admin SDK → ghi kết quả.
 
 Luồng thông báo admin: web tạo yêu cầu → worker kiểm tra role và người nhận → lưu inbox → FCM. Worker chạy cùng FastAPI hoặc độc lập; xem [`ADMIN_NOTIFICATIONS.md`](ADMIN_NOTIFICATIONS.md). Web không giữ service account hay đọc token thiết bị của user khác.
 

@@ -124,14 +124,14 @@ Build/cài lại app từ source mới để có cách xử lý `admin_message`:
 
 | Đường dẫn | Nội dung | Quyền client |
 |---|---|---|
-| `adminUserDirectory/{uid}` | Tên hiển thị, cờ có thiết bị, ngày cập nhật | Admin chỉ đọc; worker đồng bộ từ hồ sơ user |
-| `adminNotificationRequests/{requestId}` | Nội dung, audience, UID người nhận, admin gửi, thời gian, trạng thái và thống kê | Admin tạo yêu cầu `queued` và đọc; không sửa/xóa yêu cầu đã gửi |
-| `users/{uid}/notifications/admin-{requestId}` | Thông báo trong app, `type = admin_message`, `read`, thời gian | Chỉ chủ tài khoản đọc và đổi `read`; backend ghi nội dung |
+| `adminUserDirectory/{uid}` | Tên, email, role, đã khóa hay chưa, cờ có thiết bị, ngày tạo, lần đăng nhập cuối | Admin chỉ đọc; worker đồng bộ từ hồ sơ user và Firebase Auth |
+| `adminNotificationRequests/{requestId}` | Nội dung, audience, UID người nhận, `analysisId` (tùy chọn), `sendAt` (tùy chọn), admin gửi, thời gian, trạng thái, thống kê và `readCount` | Admin tạo yêu cầu `queued`, đọc, và hủy khi còn `queued`; không sửa nội dung |
+| `users/{uid}/notifications/admin-{requestId}` | Thông báo trong app, `type = admin_message`, `analysisId` nếu có, `read`, thời gian | Chỉ chủ tài khoản đọc và đổi `read`; backend ghi nội dung |
 | `users/{uid}.fcmTokens` | Token thiết bị | Không đưa vào danh sách user của web |
 
 Worker kiểm tra lại role admin lúc bắt đầu và trước mỗi người nhận. Transaction chỉ cho một worker claim cùng yêu cầu. Inbox dùng ID cố định theo yêu cầu để tránh tạo hai mục và không reset trạng thái đã đọc. Nếu web chưa nhận được phản hồi ghi, thử lại cùng nội dung trong lần thao tác đó giữ nguyên request ID.
 
-Danh sách user trên web là bản đồng bộ, có thể chậm khoảng một phút. Chỉ chứa UID, tên và cờ có thiết bị; admin không được đọc toàn bộ hồ sơ riêng, thư viện hoặc token của user khác.
+Danh sách user trên web là bản đồng bộ, có thể chậm khoảng một phút (đổi role hoặc khóa tài khoản trên web thì cập nhật ngay). Danh sách có cả admin để trang Users dùng, nhưng người nhận thông báo chỉ là role `user`. Không có token; admin không được đọc toàn bộ hồ sơ riêng, thư viện hoặc token của user khác.
 
 ## 5. Đọc kết quả gửi
 
@@ -143,10 +143,19 @@ Danh sách user trên web là bản đồng bộ, có thể chậm khoảng mộ
 | Needs review | Có người nhận bị bỏ qua, lỗi inbox, push thất bại hoặc kết quả push chưa chắc chắn |
 | Failed | Yêu cầu không hợp lệ, không còn quyền gửi hoặc không có user phù hợp trước khi lưu inbox |
 | Interrupted | Worker gặp lỗi hoặc dừng giữa chừng; không tự gửi lại |
+| Scheduled | Đang chờ đến giờ hẹn; có thể hủy |
+| Cancelled | Admin đã hủy trước khi worker xử lý; không ai nhận |
 
 **Inbox stored** tính theo user, **FCM accepted/failed** tính theo token thiết bị. Một user có thể có nhiều thiết bị. **FCM accepted không xác nhận thiết bị đã hiển thị hoặc user đã đọc**; **Without device** vẫn có thông báo trong inbox.
 
 Yêu cầu Processing không cập nhật hơn 10 phút được chuyển sang Interrupted khi worker kiểm tra lại. Không tự phát lại push sau kết quả mạng không chắc chắn vì có thể gây trùng. Xem số liệu trước khi chủ động tạo yêu cầu mới. Web giữ 30 yêu cầu gần nhất.
+
+### Link bài, hẹn giờ, nhóm chọn nhanh và tỷ lệ đã mở
+
+- **Link to a paper:** chọn một bài đã hoàn thành. Worker lưu `analysisId` vào inbox và dữ liệu push. Trên app, chạm push mở thẳng Overview của bài; trong hộp thư, hộp thoại hiện đủ nội dung kèm nút **Open paper**.
+- **Schedule:** chọn giờ giao từ 5 phút đến 30 ngày tới (theo giờ máy của admin). Worker bỏ qua yêu cầu chưa đến giờ và kiểm tra lại trong transaction claim. Trước giờ giao có thể bấm **Cancel this message**; Rules chỉ cho đổi `queued` → `cancelled`, nên không thể hủy khi worker đã bắt đầu gửi.
+- **Quick select:** chọn nhanh user có bài gần nhất bị lỗi, có bài đang chạy, chưa phân tích bài nào, không đăng nhập 30 ngày, hoặc có thiết bị push (tối đa 100 người).
+- **Opened in the app:** cứ 15 phút worker đếm số mục inbox đã mở (`read = true`) cho các yêu cầu hoàn thành trong 7 ngày, bằng một truy vấn count cho mỗi yêu cầu, và ghi `readCount`. Cần index collection group `notifications (requestId, read)` trong [`firebase/firestore.indexes.json`](../firebase/firestore.indexes.json); deploy bằng `firebase deploy --only firestore:indexes`. "Đã mở" nghĩa là user mở tin trong hộp thư của app.
 
 ## 6. Host web lên Firebase Hosting
 
@@ -172,9 +181,13 @@ Tham khảo: [Firebase Hosting multisite và deploy target](https://firebase.goo
 
 ## 7. Đã kiểm tra và phần cần thử thực tế
 
-- Web: TypeScript/build production, 21 unit/component tests và 6 Playwright tests desktop/mobile; kiểm tra chọn người, gửi tất cả, xem lại, hủy, kết quả và không gọi Firebase ở demo.
-- Backend: 101 tests pass; 5 adapter tests riêng pass trên Firestore emulator, gồm claim đồng thời, bản đồng bộ user, inbox idempotent, yêu cầu bị gián đoạn và FCM giả.
-- Firestore Rules: 9 tests pass trên emulator, gồm phân quyền, payload yêu cầu và chặn sửa kết quả.
-- Flutter: `flutter analyze` không có lỗi và 166 unit/widget tests pass, gồm đọc thông báo admin và luồng thông báo bài báo hiện tại.
+Lần kiểm tra ngày 12/11/2026, sau khi thêm link bài, hẹn giờ, hủy, nhóm chọn nhanh và tỷ lệ đã mở:
+
+- Web: TypeScript, 65 unit/component tests và 8 Playwright tests desktop/mobile.
+- Backend: 133 tests pass; 13 adapter tests riêng pass trên Firestore emulator, thêm heartbeat, directory có Auth, link bài, hẹn giờ, đếm đã đọc, hàng đợi thao tác admin, xóa analysis và đổi role/khóa tài khoản (Auth giả). Test claim đồng thời có lúc báo `Transaction lock timeout` ở lần chạy đầu của emulator và pass khi chạy lại.
+- Firestore Rules: 14 tests pass trên emulator.
+- Flutter: `flutter analyze lib test` không có lỗi và 170 tests pass.
+
+Lần kiểm tra ngày 11/11/2026 (tính năng gửi ban đầu): 21 unit và 6 Playwright tests ở web, 101 tests backend, 5 adapter tests, 9 Rules tests, 166 tests Flutter.
 
 Chưa gửi thông báo lên FCM thật, chưa kiểm tra hiển thị trên điện thoại và chưa deploy Hosting. Máy triển khai chưa có service account, nên chưa khởi động worker với Firebase thật. Các kiểm tra adapter dùng emulator và mock FCM, không gửi tới user thực.

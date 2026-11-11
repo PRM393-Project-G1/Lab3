@@ -23,7 +23,7 @@ Thư mục gốc repo là thư mục có `README.md`, `admin-web/` và `backend/
 
 Nhờ người quản trị Firebase kiểm tra các mục sau; nếu nhóm đã cấu hình thì không phải làm lại:
 
-1. **Firestore Database → Rules:** đã Publish nội dung mới trong [firebase/firestore.rules](firebase/firestore.rules).
+1. **Firestore Database → Rules và Indexes:** đã publish bản mới của [firebase/firestore.rules](firebase/firestore.rules) và [firebase/firestore.indexes.json](firebase/firestore.indexes.json), ví dụ `cd firebase && npx firebase-tools deploy --only firestore:rules,firestore:indexes --project realtron-874ac`.
 2. **Authentication:** đã bật Google Sign-In; Authorized domains có `localhost` và `127.0.0.1` nếu dùng địa chỉ đó.
 3. Tài khoản mở web có `users/{uid}.role = "admin"`.
 4. Có ít nhất một tài khoản người nhận trong `users` với `role = "user"`. Admin không xuất hiện trong danh sách nhận.
