@@ -122,3 +122,14 @@ describe('worker liveness', () => {
     expect(timeAgo(new Date(now.getTime() - 3 * 3600000), now)).toBe('3 h ago');
   });
 });
+
+describe('hidden results', () => {
+  it('do not count toward reference or weak-topic statistics', () => {
+    const papers = [
+      parseAnalysis('a', { status: 'done', summary: { verified: 4 }, topicSummary: [{ term: 'A', total: 4, flagged: 4 }] }),
+      parseAnalysis('b', { status: 'done', hidden: true, summary: { hallucinated: 6 }, topicSummary: [{ term: 'B', total: 6, flagged: 6 }] }),
+    ];
+    expect(referenceTotals(papers)).toMatchObject({ total: 4, papers: 1, fabricatedRate: 0 });
+    expect(weakTopics(papers, { threshold: 0.5, minRefs: 3 }).topics.map((topic) => topic.term)).toEqual(['A']);
+  });
+});

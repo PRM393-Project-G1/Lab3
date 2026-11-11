@@ -326,7 +326,7 @@ describe('admin actions on analyses', () => {
     expect(await screen.findByText(/Completed .* Analysis queued again/)).toBeInTheDocument();
   });
 
-  it('offers stop for running papers, nothing for completed ones, and shows refusals', async () => {
+  it('offers stop for running papers, hide or delete for completed ones, and shows refusals', async () => {
     const gateway = new FakeGateway(); open(gateway, '/analyses/1512.03385');
     await userEvent.click(await screen.findByRole('button', { name: 'Stop analysis' }));
     await userEvent.click(screen.getByRole('button', { name: 'Stop analysis' }));
@@ -335,7 +335,9 @@ describe('admin actions on analyses', () => {
     expect(await screen.findByText(/Failed .* this one is done/)).toBeInTheDocument();
     cleanupAndOpen(gateway, '/analyses/1706.03762');
     await screen.findByRole('heading', { name: 'Attention Is All You Need' });
-    expect(screen.queryByRole('heading', { name: 'Admin actions' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Hide results' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete analysis' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop analysis' })).not.toBeInTheDocument();
   });
 
   it('flags stalled jobs on the overview and filters to them', async () => {
@@ -348,5 +350,32 @@ describe('admin actions on analyses', () => {
     expect(screen.getByRole('button', { name: 'Stalled 1' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Silent paper')).toBeInTheDocument();
     expect(screen.queryByText('Queued paper')).not.toBeInTheDocument();
+  });
+});
+
+describe('hidden and deleted analyses', () => {
+  it('hides completed results with a reason and shows the hidden state everywhere', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/analyses/1706.03762');
+    await userEvent.click(await screen.findByRole('button', { name: 'Hide results' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for the log/ }), 'References parsed from the wrong PDF');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide results' }));
+    expect(gateway.requestAction.mock.calls[0][1]).toEqual({ type: 'hideAnalysis', target: '1706.03762', reason: 'References parsed from the wrong PDF' });
+    gateway.feed.analyses[0] = parseAnalysis('1706.03762', { paperTitle: 'Attention Is All You Need', status: 'done', hidden: true, hiddenReason: 'References parsed from the wrong PDF' });
+    act(() => gateway.settle({ status: 'completed', result: 'Results hidden.' }));
+    expect(await screen.findByText(/Reason: References parsed from the wrong PDF/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show results again' })).toBeInTheDocument();
+    cleanupAndOpen(gateway, '/');
+    expect(await screen.findByText('Hidden from users')).toBeInTheDocument();
+  });
+
+  it('asks for a permanent delete with a danger button and explains a missing analysis', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/analyses/1409.0473');
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete analysis' }));
+    expect(screen.getByText(/This cannot be undone/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+    expect(gateway.requestAction.mock.calls[0][1]).toMatchObject({ type: 'deleteAnalysis', target: '1409.0473' });
+    gateway.getResults.mockRejectedValue({ code: 'not-found' });
+    act(() => gateway.settle({ status: 'completed', result: 'Analysis and its results deleted.' }));
+    expect(await screen.findByText('This analysis could not be found. It may have been deleted.')).toBeInTheDocument();
   });
 });

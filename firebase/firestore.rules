@@ -25,7 +25,7 @@ service cloud.firestore {
         && data.status == 'queued'
         && data.createdAt == request.time
         && (!('reason' in data) || (data.reason is string && data.reason.size() <= 200))
-        && data.type in ['cancelAnalysis', 'retryAnalysis']
+        && data.type in ['cancelAnalysis', 'retryAnalysis', 'hideAnalysis', 'unhideAnalysis', 'deleteAnalysis']
         && data.target is string && data.target.matches('^[0-9]{4}[.][0-9]{4,5}$');
     }
 

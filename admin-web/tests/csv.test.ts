@@ -60,7 +60,8 @@ describe('stalled jobs and action drafts', async () => {
     expect(validateAction({ type: 'cancelAnalysis', target: '../users' })).toMatch(/not valid/);
     expect(validateAction({ type: 'retryAnalysis', target: '1706.03762', reason: 'x'.repeat(201) })).toMatch(/200/);
     expect(availableActions(parseAnalysis('a', { status: 'queued' }))).toEqual(['cancelAnalysis']);
-    expect(availableActions(parseAnalysis('a', { status: 'cancelled' }))).toEqual(['retryAnalysis']);
-    expect(availableActions(parseAnalysis('a', { status: 'done' }))).toEqual([]);
+    expect(availableActions(parseAnalysis('a', { status: 'cancelled' }))).toEqual(['retryAnalysis', 'deleteAnalysis']);
+    expect(availableActions(parseAnalysis('a', { status: 'done' }))).toEqual(['hideAnalysis', 'deleteAnalysis']);
+    expect(availableActions(parseAnalysis('a', { status: 'done', hidden: true }))).toEqual(['unhideAnalysis', 'retryAnalysis', 'deleteAnalysis']);
   });
 });

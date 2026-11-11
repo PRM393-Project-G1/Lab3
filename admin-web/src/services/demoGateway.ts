@@ -116,9 +116,22 @@ function applyDemoAction(id: string) {
       : { status: 'failed', error: `Only queued or processing analyses can be stopped; this one is ${analysis.status}.` };
     if (outcome.status === 'completed') Object.assign(analysis, { status: 'cancelled', error: 'Stopped by an administrator.', finishedAt: new Date(), updatedAt: new Date() });
   } else if (action.type === 'retryAnalysis') {
-    outcome = analysis.status === 'failed' || analysis.status === 'cancelled' ? { status: 'completed', result: 'Analysis queued again with its original settings.' }
-      : { status: 'failed', error: `Only failed or stopped analyses can be run again; this one is ${analysis.status}.` };
-    if (outcome.status === 'completed') Object.assign(analysis, { status: 'queued', error: null, progress: 0, createdAt: new Date(), updatedAt: new Date() });
+    outcome = analysis.status === 'failed' || analysis.status === 'cancelled' || (analysis.status === 'done' && analysis.hidden)
+      ? { status: 'completed', result: 'Analysis queued again with its original settings.' }
+      : { status: 'failed', error: `Only failed, stopped or hidden analyses can be run again; this one is ${analysis.status}.` };
+    if (outcome.status === 'completed') Object.assign(analysis, { status: 'queued', error: null, progress: 0, hidden: false, hiddenReason: null, createdAt: new Date(), updatedAt: new Date() });
+  } else if (action.type === 'hideAnalysis') {
+    outcome = analysis.status !== 'done' ? { status: 'failed', error: `Only completed analyses can be hidden; this one is ${analysis.status}.` }
+      : analysis.hidden ? { status: 'failed', error: 'This analysis is already hidden.' }
+        : { status: 'completed', result: 'Results hidden. Users now see that an administrator removed them.' };
+    if (outcome.status === 'completed') Object.assign(analysis, { hidden: true, hiddenReason: action.reason });
+  } else if (action.type === 'unhideAnalysis') {
+    outcome = analysis.hidden ? { status: 'completed', result: 'Results visible to users again.' } : { status: 'failed', error: 'This analysis is not hidden.' };
+    if (outcome.status === 'completed') Object.assign(analysis, { hidden: false, hiddenReason: null });
+  } else if (action.type === 'deleteAnalysis') {
+    outcome = isRunning(analysis) ? { status: 'failed', error: 'Stop this analysis before deleting it.' }
+      : { status: 'completed', result: 'Analysis and its results deleted. Users can request the paper again.' };
+    if (outcome.status === 'completed') analyses.splice(analyses.indexOf(analysis), 1);
   } else outcome = { status: 'failed', error: 'This action is not supported by the backend.' };
   actions[index] = { ...action, status: outcome.status, result: outcome.result ?? null, error: outcome.error ?? null, finishedAt: new Date() };
   emitActions(); emitAnalyses();

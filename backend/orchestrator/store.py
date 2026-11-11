@@ -119,6 +119,19 @@ class FirebaseStore:
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self.update_analysis(analysis_id, {**fields, "finishedAt": firestore.SERVER_TIMESTAMP})
 
+    def delete_analysis(self, analysis_id: str) -> None:
+        """Deletes the results before the analysis, so after a partial failure the analysis
+        is still listed and deleting it again finishes the job."""
+        parent = self._analysis(analysis_id)
+        for name in ("references", "topics"):
+            snapshots = list(parent.collection(name).stream())
+            for offset in range(0, len(snapshots), BATCH_SIZE):
+                batch = self._db.batch()
+                for snapshot in snapshots[offset:offset + BATCH_SIZE]:
+                    batch.delete(snapshot.reference)
+                batch.commit()
+        parent.delete()
+
     def fail_interrupted(self) -> int:
         """After a restart nothing is running, so the app must not keep waiting."""
         query = self._db.collection("analyses").where(

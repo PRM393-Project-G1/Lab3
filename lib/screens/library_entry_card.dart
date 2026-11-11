@@ -25,6 +25,7 @@ class LibraryEntryCard extends StatelessWidget {
 
   HistoryCardState get _state {
     final analysis = entry.analysis;
+    if (analysis?.hidden ?? false) return HistoryCardState.removed;
     if (analysis?.isRunning ?? false) return HistoryCardState.running;
     if (analysis?.isStopped ?? false) return HistoryCardState.failed;
     return HistoryCardState.done;
@@ -45,7 +46,10 @@ class LibraryEntryCard extends StatelessWidget {
       context.push(
         AppRoutes.analysis(
           entry.arxivId,
-          done: _state == HistoryCardState.done,
+          // Removed results open the overview, which explains why.
+          done:
+              _state != HistoryCardState.running &&
+              _state != HistoryCardState.failed,
         ),
       );
     },

@@ -110,6 +110,7 @@ class FakeActionStore(FakeStore):
         self.actions: dict[str, dict[str, Any]] = {}
         self.roles: dict[str, str] = {"admin-1": "admin", UID: "user"}
         self.created: list[tuple[str, str, bool]] = []
+        self.deleted: list[str] = []
 
     def queue(self, action_id: str, **fields: Any) -> None:
         self.actions[action_id] = {"requestedBy": "admin-1", "status": "queued", **fields}
@@ -135,6 +136,10 @@ class FakeActionStore(FakeStore):
         for value in stale:
             value.update(status="failed", error=message)
         return len(stale)
+
+    def delete_analysis(self, analysis_id: str) -> None:
+        self.deleted.append(analysis_id)
+        self.analyses.pop(analysis_id, None)
 
     def is_admin(self, uid: str) -> bool:
         return self.roles.get(uid) == "admin"

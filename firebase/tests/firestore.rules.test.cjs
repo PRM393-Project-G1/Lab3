@@ -153,7 +153,9 @@ const action = (overrides = {}) => ({
 test('only admin queues analysis actions, and requests are immutable', async () => {
   const path = 'adminActions/rules-cancel-action-request-1234';
   await assertSucceeds(setDoc(doc(admin, path), action({ reason: 'Stuck for an hour' })));
-  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-retry-action-request-1234'), action({ type: 'retryAnalysis' })));
+  for (const type of ['retryAnalysis', 'hideAnalysis', 'unhideAnalysis', 'deleteAnalysis']) {
+    await assertSucceeds(setDoc(doc(admin, `adminActions/rules-${type}-action-request-1234`), action({ type })));
+  }
   await assertSucceeds(getDocs(collection(admin, 'adminActions')));
   await assertFails(getDoc(doc(user, path)));
   await assertFails(setDoc(doc(user, 'adminActions/rules-user-action-request-1234'), action({ requestedBy: 'user' })));

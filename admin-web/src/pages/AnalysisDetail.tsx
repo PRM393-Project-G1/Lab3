@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, BookOpen, ChevronDown, Clock3, FileText, GitBranch, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, BookOpen, ChevronDown, Clock3, EyeOff, FileText, GitBranch, Sparkles } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { buildTopicTree, referenceStatuses, type AnalysisResults, type ReferenceStatus, type TopicNode } from '../domain/analysis';
 import type { AdminGateway } from '../services/gateway';
@@ -31,7 +31,7 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
       if (active) setState({ status: 'ready', id: analysisId, results });
     }).catch((error) => {
       if (active) setState({ status: 'error', id: analysisId,
-        message: error && typeof error === 'object' && 'code' in error && error.code === 'not-found' ? 'This analysis could not be found.' : errorMessage(error) });
+        message: error && typeof error === 'object' && 'code' in error && error.code === 'not-found' ? 'This analysis could not be found. It may have been deleted.' : errorMessage(error) });
     });
     return () => { active = false; };
   }, [gateway, analysisId, retry]);
@@ -54,6 +54,7 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
         {analysis.aiAssisted !== null && <span><Sparkles size={15} />{analysis.aiAssisted ? 'AI-assisted check' : 'Standard check'}</span>}
         <a href={`https://arxiv.org/abs/${encodeURIComponent(analysis.id)}`} target="_blank" rel="noopener noreferrer">Open on arXiv<ArrowUpRight size={15} /></a></div>
     </div>
+    {analysis.hidden && <div className="hidden-banner" role="status"><EyeOff size={16} /><span><strong>Hidden from users.</strong> {analysis.hiddenReason ? `Reason: ${analysis.hiddenReason}. ` : ''}Their app shows these results as removed by an administrator.</span></div>}
     {analysis.status !== 'done' ? <section className="detail-panel"><h2>Analysis status</h2>
       {analysis.status === 'processing' ? <><p>{labels[analysis.stage] || 'Processing paper'} · {analysis.progress}%</p><progress max={100} value={analysis.progress} aria-label="Analysis progress" /></>
         : <p>{analysis.status === 'queued' ? 'This paper is waiting for a processing slot.' : analysis.status === 'cancelled' ? 'This analysis was stopped.'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, FileText, RefreshCw, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, EyeOff, FileText, RefreshCw, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { filterAnalyses, formatMinutes, isRunning, stalledFor, summarize, type Analysis, type AnalysisFeed, type AnalysisFilter, type CheckMode } from '../domain/analysis';
 import { analysesCsv, downloadCsv } from '../domain/csv';
@@ -105,7 +105,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
             aria-label={`Export CSV (${visible.length} ${visible.length === 1 ? 'analysis' : 'analyses'})`}><Download size={15} />Export CSV</button>
         </div>
         {rows.length ? compact ? <div className="mobile-analysis-list">{rows.map((analysis) => <article className="mobile-analysis-card" key={analysis.id}>
-          <div className="mobile-card-meta"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>{stallBadge(analysis)}
+          <div className="mobile-card-meta"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>{analysis.hidden && <span className="hidden-badge"><EyeOff size={11} aria-hidden="true" />Hidden from users</span>}{stallBadge(analysis)}
           <Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="paper-title">{analysis.title}</Link>
           <p className="mobile-card-author">{analysis.authors[0] ? `${analysis.authors[0]}${analysis.authors.length > 1 ? ' et al.' : ''}` : 'Authors unavailable'}</p>
           {analysis.status === 'processing' && <div className="row-progress"><progress max={100} value={analysis.progress} aria-label={`Analysis progress for ${analysis.id}`} /><span>{analysis.progress}%</span></div>}
@@ -120,7 +120,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
             <div className="paper-subtitle"><code>arXiv:{analysis.id}</code><span aria-hidden="true">·</span>
               <span>{analysis.authors[0] ? `${analysis.authors[0]}${analysis.authors.length > 1 ? ' et al.' : ''}` : 'Authors unavailable'}</span></div>
           </div></div></td>
-          <td><StatusBadge status={analysis.status} />{stallBadge(analysis)}{analysis.status === 'processing' && <div className="row-progress"><progress aria-label={`Analysis progress for ${analysis.id}`} max={100} value={analysis.progress} /><span>{analysis.progress}%</span></div>}</td>
+          <td><StatusBadge status={analysis.status} />{analysis.hidden && <span className="hidden-badge"><EyeOff size={11} aria-hidden="true" />Hidden from users</span>}{stallBadge(analysis)}{analysis.status === 'processing' && <div className="row-progress"><progress aria-label={`Analysis progress for ${analysis.id}`} max={100} value={analysis.progress} /><span>{analysis.progress}%</span></div>}</td>
           <td className="references-cell">{analysis.status === 'done' ? <><strong>{analysis.totalRefs}</strong><span>references</span></> : <span className="muted">—</span>}</td>
           <td className="date-cell">{formatDate(analysis.createdAt)}<span>{[analysis.createdAt?.getFullYear(), analysis.requestedBy && `by ${nameOf(analysis.requestedBy)}`].filter(Boolean).join(' · ')}</span></td>
           <td><Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="row-action" aria-label={`View ${analysis.title}`}><ArrowRight size={18} /></Link></td>

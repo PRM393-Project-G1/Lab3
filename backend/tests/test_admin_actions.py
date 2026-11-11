@@ -104,3 +104,46 @@ def test_the_api_process_cancels_its_own_running_job():
             time.sleep(0.02)
         assert store.actions[ACTION]["status"] == "completed"
         assert store.analyses[ID]["status"] == "cancelled"
+
+
+def test_hide_marks_completed_results_and_unhide_restores_them():
+    store, jobs = FakeActionStore(), FakeJobs()
+    store.analyses[ID] = {"status": "done", "summary": {"totalRefs": 3}}
+    store.queue(ACTION, type="hideAnalysis", target=ID, reason="Wrong references parsed")
+    assert process(store, jobs)["status"] == "completed"
+    hidden = store.analyses[ID]
+    assert hidden["hidden"] is True and hidden["hiddenReason"] == "Wrong references parsed" and hidden["hiddenBy"] == "admin-1"
+    store.queue("admin-action-hide-again-01", type="hideAnalysis", target=ID)
+    assert process(store, jobs, "admin-action-hide-again-01")["error"] == "This analysis is already hidden."
+    store.queue("admin-action-unhide-0001", type="unhideAnalysis", target=ID)
+    assert process(store, jobs, "admin-action-unhide-0001")["status"] == "completed"
+    assert store.analyses[ID]["hidden"] is False and store.analyses[ID]["hiddenReason"] is None
+
+
+@pytest.mark.parametrize("status", ["queued", "failed"])
+def test_only_completed_results_can_be_hidden(status):
+    store, jobs = FakeActionStore(), FakeJobs()
+    store.analyses[ID] = {"status": status}
+    store.queue(ACTION, type="hideAnalysis", target=ID)
+    assert process(store, jobs)["status"] == "failed"
+    assert "hidden" not in store.analyses[ID]
+
+
+def test_a_hidden_result_can_be_rerun_and_becomes_visible():
+    store, jobs = FakeActionStore(), FakeJobs()
+    store.analyses[ID] = {"status": "done", "hidden": True, "requestedBy": UID, "aiAssisted": True}
+    store.queue(ACTION, type="retryAnalysis", target=ID)
+    assert process(store, jobs)["status"] == "completed"
+    assert store.analyses[ID]["hidden"] is False and store.analyses[ID]["status"] == "queued"
+    assert jobs.started == [(ID, UID, True)]
+
+
+def test_delete_removes_finished_analyses_but_never_running_ones():
+    store, jobs = FakeActionStore(), FakeJobs()
+    store.analyses[ID] = {"status": "processing"}
+    store.queue(ACTION, type="deleteAnalysis", target=ID)
+    assert process(store, jobs)["error"] == "Stop this analysis before deleting it."
+    store.analyses[ID] = {"status": "failed"}
+    store.queue("admin-action-delete-0002", type="deleteAnalysis", target=ID)
+    assert process(store, jobs, "admin-action-delete-0002")["status"] == "completed"
+    assert ID not in store.analyses and store.deleted == [ID]

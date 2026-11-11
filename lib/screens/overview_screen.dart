@@ -49,6 +49,12 @@ class OverviewScreen extends StatelessWidget {
         ),
         body: switch (vm.state) {
           Loading() || Empty() => const SkeletonList(),
+          Failure(:final message) when vm.unavailableMessage != null =>
+            StateView.empty(
+              icon: Icons.visibility_off_rounded,
+              title: message,
+              message: vm.unavailableMessage,
+            ),
           Failure() => StateView.error(onAction: vm.load),
           Data(:final value) => _Content(id: id, data: value),
         },

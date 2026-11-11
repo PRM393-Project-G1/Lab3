@@ -299,3 +299,11 @@ th { font-size: 10px; }
 .action-status.action-completed { color: #3c7d58; }
 .stall-warning { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 7px; background: #fff8e9; color: #8a5a1f; font-size: 12px; }
 .stall-warning svg { flex-shrink: 0; margin-top: 3px; }
+.hidden-badge { display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin: 6px 6px 0 0; padding: 2px 7px; border-radius: 4px; background: #f1eefb; color: #5544b8; font-size: 10px; font-weight: 550; vertical-align: middle; }
+td > .hidden-badge, .mobile-analysis-card > .hidden-badge { display: flex; }
+.hidden-banner { display: flex; gap: 10px; align-items: flex-start; margin: -8px 0 20px; padding: 12px 15px; border: 1px solid #e3ddf7; border-radius: 8px; background: #f7f5fe; color: #4a3d99; font-size: 12px; line-height: 1.6; }
+.hidden-banner svg { flex-shrink: 0; margin-top: 3px; }
+.button.danger { background: #b42f2f; border: 1px solid #b42f2f; color: white; }
+.button.danger:hover:not(:disabled) { background: #962525; }
+.button.danger-outline { color: #a33a37; border-color: #efd2d0; }
+.button.danger-outline:hover:not(:disabled) { background: #fff4f3; }

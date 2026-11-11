@@ -14,17 +14,22 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
-from .contract import CANCELLED, FAILED, RUNNING
+from .contract import CANCELLED, DONE, FAILED, RUNNING
 
 logger = logging.getLogger(__name__)
 
 ACTIONS = "adminActions"
 CANCEL_ANALYSIS = "cancelAnalysis"
 RETRY_ANALYSIS = "retryAnalysis"
-ANALYSIS_ACTIONS = (CANCEL_ANALYSIS, RETRY_ANALYSIS)
+HIDE_ANALYSIS = "hideAnalysis"
+UNHIDE_ANALYSIS = "unhideAnalysis"
+DELETE_ANALYSIS = "deleteAnalysis"
+ANALYSIS_ACTIONS = (CANCEL_ANALYSIS, RETRY_ANALYSIS, HIDE_ANALYSIS, UNHIDE_ANALYSIS, DELETE_ANALYSIS)
 STOPPED_BY_ADMIN = "Stopped by an administrator."
+VISIBLE = {"hidden": False, "hiddenReason": None, "hiddenBy": None, "hiddenAt": None}
 GENERIC_FAILURE = "Something went wrong on the server. Check the result before trying again."
 RESTARTED = "The backend restarted before finishing this action. Check the result before trying again."
 
@@ -66,6 +71,8 @@ class ActionStore(Protocol):
     def get_analysis(self, analysis_id: str) -> dict[str, Any] | None: ...
     def create_analysis(self, analysis_id: str, uid: str, ai_assisted: bool) -> None: ...
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
+    def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
+    def delete_analysis(self, analysis_id: str) -> None: ...
 
 
 class Jobs(Protocol):
@@ -83,6 +90,9 @@ class AdminActionWorker:
         self._handlers: dict[str, Callable[[AdminAction], Awaitable[str]]] = {
             CANCEL_ANALYSIS: self._cancel_analysis,
             RETRY_ANALYSIS: self._retry_analysis,
+            HIDE_ANALYSIS: self._hide_analysis,
+            UNHIDE_ANALYSIS: self._unhide_analysis,
+            DELETE_ANALYSIS: self._delete_analysis,
         }
 
     async def tick(self) -> None:
@@ -123,16 +133,45 @@ class AdminActionWorker:
 
     async def _retry_analysis(self, action: AdminAction) -> str:
         analysis = await self._analysis(action)
-        if analysis.get("status") not in (FAILED, CANCELLED):
-            raise ActionError(f"Only failed or stopped analyses can be run again; this one is {analysis.get('status')}.")
+        hidden = analysis.get("hidden") is True
+        # Hidden results were judged wrong, so they may be produced again too.
+        if analysis.get("status") not in (FAILED, CANCELLED) and not (hidden and analysis.get("status") == DONE):
+            raise ActionError(f"Only failed, stopped or hidden analyses can be run again; this one is {analysis.get('status')}.")
         if self._jobs.is_running(action.target):
             raise ActionError("This analysis is already running.")
         # The original requester keeps ownership and receives the "done" notification.
         uid = analysis.get("requestedBy") if isinstance(analysis.get("requestedBy"), str) else action.requested_by
         ai_assisted = analysis.get("aiAssisted") if isinstance(analysis.get("aiAssisted"), bool) else True
         await asyncio.to_thread(self._store.create_analysis, action.target, uid, ai_assisted)
+        if hidden:
+            await asyncio.to_thread(self._store.update_analysis, action.target, VISIBLE)
         self._jobs.start(action.target, uid, ai_assisted)
         return "Analysis queued again with its original settings."
+
+    async def _hide_analysis(self, action: AdminAction) -> str:
+        analysis = await self._analysis(action)
+        if analysis.get("status") != DONE:
+            raise ActionError(f"Only completed analyses can be hidden; this one is {analysis.get('status')}.")
+        if analysis.get("hidden") is True:
+            raise ActionError("This analysis is already hidden.")
+        await asyncio.to_thread(self._store.update_analysis, action.target, {
+            "hidden": True, "hiddenReason": action.reason, "hiddenBy": action.requested_by,
+            "hiddenAt": datetime.now(timezone.utc)})
+        return "Results hidden. Users now see that an administrator removed them."
+
+    async def _unhide_analysis(self, action: AdminAction) -> str:
+        analysis = await self._analysis(action)
+        if analysis.get("hidden") is not True:
+            raise ActionError("This analysis is not hidden.")
+        await asyncio.to_thread(self._store.update_analysis, action.target, VISIBLE)
+        return "Results visible to users again."
+
+    async def _delete_analysis(self, action: AdminAction) -> str:
+        analysis = await self._analysis(action)
+        if analysis.get("status") in RUNNING or self._jobs.is_running(action.target):
+            raise ActionError("Stop this analysis before deleting it.")
+        await asyncio.to_thread(self._store.delete_analysis, action.target)
+        return "Analysis and its results deleted. Users can request the paper again."
 
     async def run(self, stop: asyncio.Event) -> None:
         try:

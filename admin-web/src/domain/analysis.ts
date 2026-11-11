@@ -26,6 +26,9 @@ export interface Analysis {
   aiAssisted: boolean | null;
   /** Per-topic subtree counts written by the backend; null before it was computed. */
   topicSummary: TopicStat[] | null;
+  /** Results an admin judged wrong; the app shows them as removed. */
+  hidden: boolean;
+  hiddenReason: string | null;
 }
 export type CheckMode = 'all' | 'ai' | 'standard';
 export interface AnalysisScope { requester?: string; mode?: CheckMode }
@@ -104,6 +107,7 @@ export function parseAnalysis(id: string, data: RawDocument): Analysis {
       const total = number(row.total);
       return term && total ? [{ term, depth: number(row.depth), total, flagged: Math.min(total, number(row.flagged)) }] : [];
     }) : null,
+    hidden: data.hidden === true, hiddenReason: data.hidden === true && typeof data.hiddenReason === 'string' ? data.hiddenReason : null,
   };
 }
 

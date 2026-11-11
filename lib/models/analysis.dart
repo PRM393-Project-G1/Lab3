@@ -78,6 +78,8 @@ class Analysis {
     this.counts = const StatusCounts(),
     this.totalRefs = 0,
     this.error,
+    this.hidden = false,
+    this.hiddenReason,
     this.fromCache = false,
   });
 
@@ -99,6 +101,10 @@ class Analysis {
       counts: counts,
       totalRefs: (summary['totalRefs'] as num?)?.toInt() ?? counts.total,
       error: map['error'] as String?,
+      hidden: map['hidden'] == true,
+      hiddenReason: map['hidden'] == true
+          ? map['hiddenReason'] as String?
+          : null,
       fromCache: fromCache,
     );
   }
@@ -111,6 +117,12 @@ class Analysis {
   final StatusCounts counts;
   final int totalRefs;
   final String? error;
+
+  /// An administrator judged these results wrong and removed them from view.
+  final bool hidden;
+
+  /// Why the results were hidden, when the administrator gave a reason.
+  final String? hiddenReason;
 
   /// True while the device cannot confirm this copy with the server.
   final bool fromCache;

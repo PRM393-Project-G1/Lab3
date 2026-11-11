@@ -66,7 +66,8 @@ export interface ReferenceTotals { counts: Counts; total: number; papers: number
 /** Reference outcomes summed over completed analyses. */
 export function referenceTotals(analyses: Analysis[]): ReferenceTotals {
   const sum = counts({});
-  const completed = analyses.filter((a) => a.status === 'done');
+  // Hidden results were judged wrong, so they do not count toward reference or topic statistics.
+  const completed = analyses.filter((a) => a.status === 'done' && !a.hidden);
   for (const analysis of completed) referenceStatuses.forEach((status) => { sum[status] += analysis.counts[status]; });
   const total = totalCounts(sum);
   return { counts: sum, total, papers: completed.length, fabricatedRate: total ? sum.hallucinated / total : null };
@@ -122,7 +123,8 @@ export interface WeakTopic { term: string; papers: number; flagged: number; tota
 export interface WeakTopics { topics: WeakTopic[]; summarized: number; completed: number }
 /** Topics that met the weak rule in the most completed papers; each paper counts once per term. */
 export function weakTopics(analyses: Analysis[], rule: WeakRule, top = 8): WeakTopics {
-  const completed = analyses.filter((a) => a.status === 'done');
+  // Hidden results were judged wrong, so they do not count toward reference or topic statistics.
+  const completed = analyses.filter((a) => a.status === 'done' && !a.hidden);
   const groups = new Map<string, WeakTopic>();
   let summarized = 0;
   for (const analysis of completed) {

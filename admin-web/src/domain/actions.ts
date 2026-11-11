@@ -1,6 +1,6 @@
 import { date, isRunning, type Analysis, type RawDocument } from './analysis';
 
-export const actionTypes = ['cancelAnalysis', 'retryAnalysis'] as const;
+export const actionTypes = ['cancelAnalysis', 'retryAnalysis', 'hideAnalysis', 'unhideAnalysis', 'deleteAnalysis'] as const;
 export type ActionType = typeof actionTypes[number];
 export interface ActionDraft { type: ActionType; target: string; reason?: string }
 export type ActionStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'unknown';
@@ -10,7 +10,8 @@ export interface AdminActionRecord {
 }
 
 export const actionLabels: Record<ActionType | 'unknown', string> = {
-  cancelAnalysis: 'Stop analysis', retryAnalysis: 'Run again', unknown: 'Unknown action',
+  cancelAnalysis: 'Stop analysis', retryAnalysis: 'Run again', hideAnalysis: 'Hide results', unhideAnalysis: 'Show results again',
+  deleteAnalysis: 'Delete analysis', unknown: 'Unknown action',
 };
 export const actionStatusLabels: Record<ActionStatus, string> = {
   queued: 'Waiting for backend', processing: 'In progress', completed: 'Completed', failed: 'Failed', unknown: 'Unknown',
@@ -47,7 +48,7 @@ export function latestFor(actions: AdminActionRecord[], target: string): AdminAc
 /** Which actions make sense for an analysis in its current state. */
 export function availableActions(analysis: Analysis): ActionType[] {
   if (isRunning(analysis)) return ['cancelAnalysis'];
-  if (analysis.status === 'failed' || analysis.status === 'cancelled') return ['retryAnalysis'];
-  return [];
+  if (analysis.status === 'done') return analysis.hidden ? ['unhideAnalysis', 'retryAnalysis', 'deleteAnalysis'] : ['hideAnalysis', 'deleteAnalysis'];
+  return ['retryAnalysis', 'deleteAnalysis'];
 }
 

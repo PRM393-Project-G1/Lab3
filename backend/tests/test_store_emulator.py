@@ -42,3 +42,14 @@ def test_unfinished_actions_are_failed_and_updates_stamp_the_analysis(store):
     assert reference.get().to_dict()["error"] == "restarted"
     store.update_analysis("1706.03762", {"status": "processing"})
     assert isinstance(store.get_analysis("1706.03762")["updatedAt"], datetime)
+
+
+def test_delete_removes_the_analysis_and_all_its_results(store):
+    store.update_analysis("2101.00002", {"status": "done"})
+    parent = store._analysis("2101.00002")
+    for index in range(3):
+        parent.collection("references").document(f"ref-{index}").set({"status": "verified"})
+    parent.collection("topics").document("t-a").set({"term": "A"})
+    store.delete_analysis("2101.00002")
+    assert store.get_analysis("2101.00002") is None
+    assert not list(parent.collection("references").stream()) and not list(parent.collection("topics").stream())
