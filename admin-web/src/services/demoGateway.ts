@@ -1,4 +1,4 @@
-import { counts, parseAnalysis, parseReference, parseTopic, type AnalysisResults } from '../domain/analysis';
+import { buildTopicTree, counts, parseAnalysis, parseReference, parseTopic, type AnalysisResults, type TopicNode, type TopicStat } from '../domain/analysis';
 import type { AdminGateway } from './gateway';
 import { normalizeDraft, parseAnnouncement, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 
@@ -29,6 +29,11 @@ const sample = [
 
 // Spread over about two weeks so the insight charts have a shape to show.
 const fabricated: Record<string, number> = { '1810.04805': 2, '1406.2661': 1 };
+const themes: Record<string, [string, string, string]> = {
+  '1810.04805': ['Attention mechanisms', 'Pre-training', 'Language modeling'],
+  '1406.2661': ['Adversarial training', 'Optimization', 'Representation learning'],
+  '1409.3215': ['Sequence models', 'Optimization', 'Representation learning'],
+};
 const failures: Record<string, string> = {
   '1508.04025': "Couldn't extract topics. Check the Saffron service and try again from the user app.",
   '1502.03167': 'The server restarted. Try again.',
@@ -69,10 +74,23 @@ function results(id: string): AnalysisResults {
   });
   const topics = analysis.status === 'done' ? [
     parseTopic('learning', { term: 'Machine learning', counts: counts({}) }),
-    ...[['attention', 'Attention mechanisms'], ['optimization', 'Optimization'], ['representation', 'Representation learning']].map(([topicId, term]) =>
+    ...[['attention', themes[id]?.[0] ?? 'Attention mechanisms'], ['optimization', themes[id]?.[1] ?? 'Optimization'], ['representation', themes[id]?.[2] ?? 'Representation learning']].map(([topicId, term]) =>
       parseTopic(topicId, { term, parentId: 'learning', refIds: references.filter((r) => r.topicIds.includes(topicId)).map((r) => r.id) })),
   ] : [];
   return { analysis, references, topics, weakRule: { threshold: 0.5, minRefs: 3 } };
+}
+
+// Like the backend: subtree counts per topic, kept only where something was flagged.
+for (const analysis of analyses) {
+  if (analysis.status !== 'done') continue;
+  const { topics, references, weakRule } = results(analysis.id);
+  const flat: TopicStat[] = [];
+  const walk = (node: TopicNode, depth: number) => {
+    flat.push({ term: node.term, depth, total: node.total, flagged: node.counts.error + node.counts.hallucinated });
+    node.children.forEach((child) => walk(child, depth + 1));
+  };
+  buildTopicTree(topics, references, weakRule).forEach((root) => walk(root, 0));
+  analysis.topicSummary = flat.filter((topic) => topic.flagged > 0);
 }
 
 export const demoGateway: AdminGateway = {
@@ -81,6 +99,7 @@ export const demoGateway: AdminGateway = {
   async signIn() {}, async signOut() {},
   watchAnalyses(next) { next({ analyses, fromCache: false }); return () => {}; },
   async getResults(id) { return results(id); },
+  async getWeakRule() { return { threshold: 0.5, minRefs: 3 }; },
   watchRecipients(next) { next(demoRecipients); return () => {}; },
   watchAnnouncements(next) { announcementObservers.add(next); next([...announcements]); return () => { announcementObservers.delete(next); }; },
   async queueAnnouncement(id, raw) {

@@ -1,4 +1,4 @@
-import { counts, isRunning, referenceStatuses, totalCounts, type Analysis, type Counts } from './analysis';
+import { counts, isRunning, referenceStatuses, totalCounts, type Analysis, type Counts, type WeakRule } from './analysis';
 
 export type InsightRange = '7d' | '30d' | '90d' | 'all';
 export const insightRanges: { value: InsightRange; label: string; days: number | null }[] = [
@@ -116,4 +116,28 @@ export function formatPercent(value: number | null, digits = 0): string {
   const percent = value * 100;
   // A non-zero share never rounds down to a misleading 0%.
   return percent > 0 && percent < 10 ** -digits ? `<${10 ** -digits}%` : `${percent.toFixed(digits)}%`;
+}
+
+export interface WeakTopic { term: string; papers: number; flagged: number; total: number }
+export interface WeakTopics { topics: WeakTopic[]; summarized: number; completed: number }
+/** Topics that met the weak rule in the most completed papers; each paper counts once per term. */
+export function weakTopics(analyses: Analysis[], rule: WeakRule, top = 8): WeakTopics {
+  const completed = analyses.filter((a) => a.status === 'done');
+  const groups = new Map<string, WeakTopic>();
+  let summarized = 0;
+  for (const analysis of completed) {
+    if (!analysis.topicSummary) continue;
+    summarized++;
+    const seen = new Set<string>();
+    for (const topic of analysis.topicSummary) {
+      const key = topic.term.toLowerCase();
+      if (seen.has(key) || topic.total < rule.minRefs || topic.flagged / topic.total < rule.threshold) continue;
+      seen.add(key);
+      const group = groups.get(key) ?? { term: topic.term, papers: 0, flagged: 0, total: 0 };
+      group.papers++; group.flagged += topic.flagged; group.total += topic.total;
+      groups.set(key, group);
+    }
+  }
+  const topics = [...groups.values()].sort((a, b) => b.papers - a.papers || b.flagged / b.total - a.flagged / a.total || a.term.localeCompare(b.term));
+  return { topics: topics.slice(0, top), summarized, completed: completed.length };
 }

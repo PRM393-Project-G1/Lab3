@@ -1,4 +1,4 @@
-import type { AnalysisFeed, AnalysisResults } from '../domain/analysis';
+import type { AnalysisFeed, AnalysisResults, WeakRule } from '../domain/analysis';
 import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } from '../domain/notifications';
 
 export type Unsubscribe = () => void;
@@ -10,6 +10,8 @@ export interface AdminGateway {
   signOut(): Promise<void>;
   watchAnalyses(next: (feed: AnalysisFeed) => void, error: (error: unknown) => void): Unsubscribe;
   getResults(id: string): Promise<AnalysisResults>;
+  /** The weak-topic rule from Remote Config, with safe defaults. */
+  getWeakRule(): Promise<WeakRule>;
   watchRecipients(next: (users: NotificationRecipient[]) => void, error: (error: unknown) => void): Unsubscribe;
   watchAnnouncements(next: (requests: AnnouncementRequest[]) => void, error: (error: unknown) => void): Unsubscribe;
   queueAnnouncement(id: string, draft: AnnouncementDraft): Promise<void>;

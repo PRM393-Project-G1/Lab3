@@ -22,6 +22,8 @@ export interface Analysis {
   requestedBy: string | null;
   /** Null for legacy records written before the flag existed. */
   aiAssisted: boolean | null;
+  /** Per-topic subtree counts written by the backend; null before it was computed. */
+  topicSummary: TopicStat[] | null;
 }
 export type CheckMode = 'all' | 'ai' | 'standard';
 export interface AnalysisScope { requester?: string; mode?: CheckMode }
@@ -47,6 +49,7 @@ export interface Topic {
   counts: Counts;
 }
 
+export interface TopicStat { term: string; depth: number; total: number; flagged: number }
 export interface WeakRule { threshold: number; minRefs: number }
 export interface TopicNode extends Topic { children: TopicNode[]; total: number; isWeak: boolean }
 export interface AnalysisResults {
@@ -93,6 +96,12 @@ export function parseAnalysis(id: string, data: RawDocument): Analysis {
     counts: tally, progress: Math.min(100, number(progress.percent)),
     stage: string(progress.stage, 'references'), error: typeof data.error === 'string' ? data.error : null,
     requestedBy: string(data.requestedBy) || null, aiAssisted: typeof data.aiAssisted === 'boolean' ? data.aiAssisted : null,
+    topicSummary: Array.isArray(data.topicSummary) ? data.topicSummary.flatMap((raw) => {
+      const row = object(raw);
+      const term = string(row.term).trim();
+      const total = number(row.total);
+      return term && total ? [{ term, depth: number(row.depth), total, flagged: Math.min(total, number(row.flagged)) }] : [];
+    }) : null,
   };
 }
 

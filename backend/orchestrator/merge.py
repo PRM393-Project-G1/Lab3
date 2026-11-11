@@ -191,3 +191,26 @@ def build_topics(
     for ref in references:
         ref["topicIds"] = topics_of_ref.get(ref["id"], [])
     return topics
+
+
+MAX_TOPIC_SUMMARY = 200
+
+
+def topic_summary(topics: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Per-topic issue counts stored on the analysis, so the admin web can rank weak
+    topics across papers without reading every `topics` subcollection.
+
+    `total` and `flagged` (error + hallucinated) cover the topic's subtree, like
+    `counts`. The weak-topic threshold lives in Remote Config, so the reader decides.
+    Topics without a flagged reference can never be weak and are left out.
+    """
+    rows = []
+    for topic in topics:
+        counts = topic.get("counts") or {}
+        total = sum(int(counts.get(status) or 0) for status in STATUSES)
+        flagged = int(counts.get("error") or 0) + int(counts.get("hallucinated") or 0)
+        term = str(topic.get("term") or "").strip()
+        if term and flagged:
+            rows.append({"term": term, "depth": int(topic.get("depth") or 0), "total": total, "flagged": flagged})
+    rows.sort(key=lambda row: (-row["flagged"] / row["total"], -row["total"], row["term"]))
+    return rows[:MAX_TOPIC_SUMMARY]

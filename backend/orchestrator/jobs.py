@@ -156,6 +156,7 @@ class Pipeline:
                 "status": DONE,
                 "paperTitle": title,
                 "summary": summary,
+                "topicSummary": merge.topic_summary(topics),
                 "error": None,
                 "progress": {"stage": "topics", "percent": 100, "processedRefs": len(references)},
             },

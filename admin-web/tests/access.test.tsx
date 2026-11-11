@@ -46,6 +46,7 @@ class FakeGateway implements AdminGateway {
   watchAnalyses = vi.fn<AdminGateway['watchAnalyses']>((next, error) => {
     this.feedNext = next; this.feedError = error; queueMicrotask(() => next(this.feed)); return this.stopFeed;
   });
+  getWeakRule = vi.fn<AdminGateway['getWeakRule']>(async () => ({ threshold: 0.5, minRefs: 3 }));
   getResults = vi.fn<AdminGateway['getResults']>(async (id) => ({
     analysis: this.feed.analyses.find((a) => a.id === id)!, references: [], topics: [], weakRule: { threshold: 0.5, minRefs: 3 },
   }));

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BarChart3, CircleAlert, Clock3, FileText, RefreshCw, ShieldAlert, TrendingUp } from 'lucide-react';
-import { type AnalysisFeed, type ReferenceStatus } from '../domain/analysis';
-import { activity, durations, failureReasons, formatDuration, formatPercent, inRange, insightRanges, outcomes, referenceTotals, type InsightRange } from '../domain/insights';
+import { BarChart3, CircleAlert, Clock3, FileText, GitBranch, RefreshCw, ShieldAlert, TrendingUp } from 'lucide-react';
+import { type AnalysisFeed, type ReferenceStatus, type WeakRule } from '../domain/analysis';
+import { activity, durations, failureReasons, formatDuration, formatPercent, inRange, insightRanges, outcomes, referenceTotals, weakTopics, type InsightRange } from '../domain/insights';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel } from '../components/ui';
@@ -15,24 +15,27 @@ export const referenceColors: Record<ReferenceStatus, { label: string; color: st
   warning: { label: 'Warning', color: '#fab219', darkText: true }, unverified: { label: 'Unverified', color: '#a9b1bf', darkText: true },
   verified: { label: 'Verified', color: '#0ca30c' },
 };
+const defaultWeakRule: WeakRule = { threshold: 0.5, minRefs: 3 };
 const dayFormat = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' });
 
 export function Insights({ gateway, demo }: { gateway: AdminGateway; demo: boolean }) {
   const [state, setState] = useState<FeedState>({ status: 'loading' });
   const [retry, setRetry] = useState(0);
   const [range, setRange] = useState<InsightRange>('30d');
+  const [rule, setRule] = useState<WeakRule>(defaultWeakRule);
   useEffect(() => {
     let active = true;
     setState({ status: 'loading' });
     const stop = gateway.watchAnalyses((feed) => { if (active) setState({ status: 'ready', feed }); },
       (error) => { if (active) setState({ status: 'error', message: errorMessage(error) }); });
+    gateway.getWeakRule().then((value) => { if (active) setRule(value); }).catch(() => {});
     return () => { active = false; stop(); };
   }, [gateway, retry]);
 
   const all = useMemo(() => state.status === 'ready' ? state.feed.analyses : [], [state]);
   const scoped = useMemo(() => inRange(all, range), [all, range]);
   const result = useMemo(() => ({ outcome: outcomes(scoped), references: referenceTotals(scoped), timing: durations(scoped),
-    reasons: failureReasons(scoped), trend: activity(scoped, range) }), [scoped, range]);
+    reasons: failureReasons(scoped), trend: activity(scoped, range), weak: weakTopics(scoped, rule) }), [scoped, range, rule]);
   const rangeLabel = insightRanges.find((item) => item.value === range)!.label.toLowerCase();
   const base = demo ? '/demo' : '';
 
@@ -70,6 +73,14 @@ export function Insights({ gateway, demo }: { gateway: AdminGateway; demo: boole
           <p className="muted insight-note">Hallucinated references are the ones the checker could not match to any real publication.</p>
           <SegmentedBar label="Reference status distribution" unit="references" segments={(['hallucinated', 'error', 'warning', 'unverified', 'verified'] as const).map((status) => ({
             key: status, value: result.references.counts[status], ...referenceColors[status] }))} />
+        </section>
+        <section className="detail-panel insight-panel" aria-labelledby="weak-title"><div className="insight-heading"><h2 id="weak-title"><GitBranch size={18} />Common weak topics</h2>
+          <span className="panel-caption">Papers where the topic was weak</span></div>
+          <p className="muted insight-note">Weak: at least {rule.minRefs} references, with ≥ {Math.round(rule.threshold * 100)}% marked Error or Hallucinated.
+            {result.weak.summarized < result.weak.completed && ` ${result.weak.completed - result.weak.summarized} of ${result.weak.completed} completed papers have no topic summary yet; run the backend backfill to include them.`}</p>
+          <BarList label="Weak topics" empty={result.weak.summarized ? 'No topic was weak in this period.' : 'No topic summaries yet.'}
+            rows={result.weak.topics.map((topic) => ({ key: topic.term, label: topic.term, text: topic.term, value: topic.papers,
+              display: `${topic.papers} ${topic.papers === 1 ? 'paper' : 'papers'} · ${formatPercent(topic.flagged / topic.total)} flagged` }))} />
         </section>
         <div className="insight-grid">
           <section className="detail-panel insight-panel" aria-labelledby="failures-title"><div className="insight-heading"><h2 id="failures-title"><CircleAlert size={18} />Common failure reasons</h2>

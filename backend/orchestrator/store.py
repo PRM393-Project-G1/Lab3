@@ -9,7 +9,7 @@ from typing import Any
 import firebase_admin
 from firebase_admin import auth, exceptions, firestore, messaging
 
-from .contract import DONE_TYPE, FAILED, QUEUED, RUNNING
+from .contract import DONE, DONE_TYPE, FAILED, QUEUED, RUNNING
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,14 @@ class FirebaseStore:
 
     def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self._analysis(analysis_id).set(fields, merge=True)
+
+    def completed_analyses(self) -> Iterable[tuple[str, dict[str, Any]]]:
+        query = self._db.collection("analyses").where(filter=firestore.FieldFilter("status", "==", DONE))
+        for snapshot in query.stream():
+            yield snapshot.id, snapshot.to_dict() or {}
+
+    def topics_of(self, analysis_id: str) -> list[dict[str, Any]]:
+        return [snapshot.to_dict() or {} for snapshot in self._analysis(analysis_id).collection("topics").stream()]
 
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self.update_analysis(analysis_id, {**fields, "finishedAt": firestore.SERVER_TIMESTAMP})

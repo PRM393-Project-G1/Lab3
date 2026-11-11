@@ -92,6 +92,7 @@ export function getFirebaseGateway(): AdminGateway {
       next({ analyses: snapshot.docs.map((item) => parseAnalysis(item.id, item.data())),
         fromCache: snapshot.metadata.fromCache });
     }, error),
+    getWeakRule: weakRule,
     async getResults(id) {
       const [paper, references, topics, rule] = await Promise.all([
         getDoc(doc(db, 'analyses', id)),
