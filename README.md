@@ -6,6 +6,8 @@ PRM393 Lab 3. App Android (Flutter + Firebase). Backend do nhóm chạy trên la
 
 **Muốn chạy thử:** xem [HUONG_DAN_CHAY.md](HUONG_DAN_CHAY.md).
 
+**Chạy web admin và gửi thông báo:** làm theo [CHAY_ADMIN.md](CHAY_ADMIN.md), có lệnh cho Ubuntu/Linux và Windows, cách mở hai terminal và kiểm tra ở app.
+
 ## Tài liệu
 
 | Nội dung | File |

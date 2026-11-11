@@ -2,6 +2,8 @@
 
 React + TypeScript + Vite. Dùng cùng Firebase/Firestore với app Android và backend hiện tại.
 
+**Lần đầu nhận code:** xem [hướng dẫn chạy từng bước](../CHAY_ADMIN.md), gồm cấu hình Firebase, hai terminal chạy web/BE và cách gửi thử tới app.
+
 ```bash
 npm ci
 npm run dev
