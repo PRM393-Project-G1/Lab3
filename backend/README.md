@@ -82,6 +82,12 @@ Gửi push `Analysis done` thật cho mọi tài khoản đã đăng ký token, 
 .venv/Scripts/python -m orchestrator.push 1706.03762
 ```
 
+## Thông báo từ web admin
+
+`build_app` tự chạy worker theo dõi `adminNotificationRequests` trong Firestore: kiểm tra quyền admin, lưu inbox từng user và gửi FCM khi có token. Admin có thể chọn tất cả hoặc chỉ định người nhận. Không cần mở thêm endpoint HTTP.
+
+Để chỉ thử thông báo, có thể dùng `requirements-notifications.txt` và chạy `python -m orchestrator.notification_worker` độc lập với pipeline phân tích. Hướng dẫn khóa Firebase, Rules, lệnh chạy và cách đọc kết quả: [`docs/ADMIN_NOTIFICATIONS.md`](../docs/ADMIN_NOTIFICATIONS.md). Khởi động worker sẽ xử lý các yêu cầu thật đang chờ.
+
 ## Upload báo cáo lên Cloudinary
 
 Gói Spark không có Cloud Storage, nên app tạm upload báo cáo PDF lên Cloudinary. App không giữ secret: nó gọi `POST /api/uploads/signature`, service kiểm tra Firebase token rồi ký cho đúng `reports/{uid}/{fileName}`, với uid lấy từ token. App gửi file thẳng lên Cloudinary bằng chữ ký đó, nên mỗi user chỉ ghi được vào thư mục của mình.

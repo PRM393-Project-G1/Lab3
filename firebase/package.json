@@ -1,0 +1,12 @@
+{
+  "name": "realtron-firestore-rules-tests",
+  "private": true,
+  "scripts": {
+    "test:rules": "firebase emulators:exec --only firestore --project demo-realtron-admin --config emulator.test.json \"node --test tests/firestore.rules.test.cjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
+    "firebase": "12.0.0",
+    "firebase-tools": "15.35.0"
+  }
+}

@@ -1,5 +1,7 @@
 # Hướng dẫn chạy Realtron
 
+**Muốn chạy web admin và gửi thông báo?** Đọc [CHAY_ADMIN.md](CHAY_ADMIN.md) trước: chuẩn bị cấu hình, chạy web + backend trên hai terminal và gửi thử. Tài liệu bên dưới tập trung vào app Android và máy phân tích paper.
+
 Realtron gồm hai phần:
 
 - **App Android:** đăng nhập Google, đọc kết quả từ Firestore.

@@ -68,7 +68,7 @@ class _RealtronAppState extends State<RealtronApp> {
     _messenger.currentState?.showSnackBar(
       SnackBar(
         content: Text(push.title),
-        action: push.analysisId == null
+        action: push.analysisId == null && !push.isAdminMessage
             ? null
             : SnackBarAction(label: 'View', onPressed: () => _openPush(push)),
       ),
@@ -76,9 +76,13 @@ class _RealtronAppState extends State<RealtronApp> {
   }
 
   void _openPush(PushMessage push) {
-    context.read<AnalyticsService>().logNotificationOpen('analysis_done');
+    context.read<AnalyticsService>().logNotificationOpen(push.type);
     final id = push.analysisId;
-    if (id != null) _router.go(AppRoutes.overview(id));
+    if (push.isAdminMessage) {
+      _router.go(AppRoutes.notifications);
+    } else if (id != null) {
+      _router.go(AppRoutes.overview(id));
+    }
   }
 
   void _openShared(String text) {
