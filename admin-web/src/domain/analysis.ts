@@ -18,7 +18,13 @@ export interface Analysis {
   progress: number;
   stage: string;
   error: string | null;
+  /** UID of the user whose request started the latest run. */
+  requestedBy: string | null;
+  /** Null for legacy records written before the flag existed. */
+  aiAssisted: boolean | null;
 }
+export type CheckMode = 'all' | 'ai' | 'standard';
+export interface AnalysisScope { requester?: string; mode?: CheckMode }
 
 export interface Reference {
   id: string;
@@ -86,6 +92,7 @@ export function parseAnalysis(id: string, data: RawDocument): Analysis {
     totalRefs: typeof summary.totalRefs === 'number' ? number(summary.totalRefs) : totalCounts(tally),
     counts: tally, progress: Math.min(100, number(progress.percent)),
     stage: string(progress.stage, 'references'), error: typeof data.error === 'string' ? data.error : null,
+    requestedBy: string(data.requestedBy) || null, aiAssisted: typeof data.aiAssisted === 'boolean' ? data.aiAssisted : null,
   };
 }
 
@@ -125,10 +132,12 @@ export function summarize(analyses: Analysis[]) {
   return { total: analyses.length, done: analyses.filter((a) => a.status === 'done').length,
     running: analyses.filter(isRunning).length, failed: analyses.filter((a) => a.status === 'failed').length };
 }
-export function filterAnalyses(analyses: Analysis[], query: string, filter: AnalysisFilter): Analysis[] {
+export function filterAnalyses(analyses: Analysis[], query: string, filter: AnalysisFilter, scope: AnalysisScope = {}): Analysis[] {
   const text = query.trim().toLowerCase();
   return analyses.filter((a) =>
     (filter === 'all' || (filter === 'running' ? isRunning(a) : a.status === filter)) &&
+    (!scope.requester || a.requestedBy === scope.requester) &&
+    (!scope.mode || scope.mode === 'all' || a.aiAssisted === (scope.mode === 'ai')) &&
     (!text || a.title.toLowerCase().includes(text) || a.id.toLowerCase().includes(text)),
   ).sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
 }

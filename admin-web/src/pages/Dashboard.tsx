@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, FileText, RefreshCw, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, FileText, RefreshCw, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { filterAnalyses, isRunning, summarize, type AnalysisFeed, type AnalysisFilter } from '../domain/analysis';
+import { filterAnalyses, isRunning, summarize, type AnalysisFeed, type AnalysisFilter, type CheckMode } from '../domain/analysis';
+import { analysesCsv, downloadCsv } from '../domain/csv';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel, StatusBadge, formatDate } from '../components/ui';
@@ -22,23 +23,35 @@ export function Dashboard({ gateway, demo }: { gateway: AdminGateway; demo: bool
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AnalysisFilter>('all');
   const [requestedPage, setPage] = useState(1);
+  const [requester, setRequester] = useState('');
+  const [mode, setMode] = useState<CheckMode>('all');
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     let active = true;
     setState({ status: 'loading' });
     const stop = gateway.watchAnalyses((feed) => {
       if (active) setState({ status: 'ready', feed });
     }, (error) => { if (active) setState({ status: 'error', message: errorMessage(error) }); });
-    return () => { active = false; stop(); };
+    // Names are a convenience: without the directory, requesters show as short UIDs.
+    const stopNames = gateway.watchRecipients((users) => { if (active) setNames(new Map(users.map((user) => [user.uid, user.name]))); }, () => {});
+    return () => { active = false; stop(); stopNames(); };
   }, [gateway, retry]);
 
   const analyses = state.status === 'ready' ? state.feed.analyses : [];
   const summary = useMemo(() => summarize(analyses), [analyses]);
-  const visible = useMemo(() => filterAnalyses(analyses, query, filter), [analyses, query, filter]);
+  const nameOf = useCallback((uid: string | null) => uid ? names.get(uid) ?? `User ${uid.slice(0, 6)}…` : 'Unknown requester', [names]);
+  const requesters = useMemo(() => {
+    const tally = new Map<string, number>();
+    analyses.forEach((a) => { if (a.requestedBy) tally.set(a.requestedBy, (tally.get(a.requestedBy) ?? 0) + 1); });
+    return [...tally].map(([uid, count]) => ({ uid, count, name: nameOf(uid) })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [analyses, nameOf]);
+  const visible = useMemo(() => filterAnalyses(analyses, query, filter, { requester, mode }), [analyses, query, filter, requester, mode]);
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const page = Math.min(requestedPage, pages);
   const rows = visible.slice((page - 1) * pageSize, page * pageSize);
   const refresh = () => setRetry((value) => value + 1);
-  const clear = () => { setQuery(''); setFilter('all'); setPage(1); };
+  const clear = () => { setQuery(''); setFilter('all'); setRequester(''); setMode('all'); setPage(1); };
+  const exportCsv = () => downloadCsv(`realtron-analyses-${new Date().toISOString().slice(0, 10)}.csv`, analysesCsv(visible, nameOf));
   const metrics = [
     { title: 'Total analyses', value: summary.total, icon: FileText, note: 'Across the workspace', tone: 'navy' },
     { title: 'Completed', value: summary.done, icon: CheckCheck, note: 'Results ready to review', tone: 'green' },
@@ -74,6 +87,14 @@ export function Dashboard({ gateway, demo }: { gateway: AdminGateway; demo: bool
             value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
             {query && <button aria-label="Clear search" onClick={() => { setQuery(''); setPage(1); }}><X size={15} /></button>}</div>
         </div>
+        <div className="table-scope">
+          <label className="select-label">Requested by<select aria-label="Requested by" value={requester} onChange={(event) => { setRequester(event.target.value); setPage(1); }}>
+            <option value="">All requesters</option>{requesters.map((item) => <option key={item.uid} value={item.uid}>{item.name} ({item.count})</option>)}</select></label>
+          <label className="select-label">Check mode<select aria-label="Check mode" value={mode} onChange={(event) => { setMode(event.target.value as CheckMode); setPage(1); }}>
+            <option value="all">All modes</option><option value="ai">AI-assisted</option><option value="standard">Standard</option></select></label>
+          <button className="button secondary export-button" disabled={!visible.length} onClick={exportCsv}
+            aria-label={`Export CSV (${visible.length} ${visible.length === 1 ? 'analysis' : 'analyses'})`}><Download size={15} />Export CSV</button>
+        </div>
         {rows.length ? compact ? <div className="mobile-analysis-list">{rows.map((analysis) => <article className="mobile-analysis-card" key={analysis.id}>
           <div className="mobile-card-meta"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>
           <Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="paper-title">{analysis.title}</Link>
@@ -92,10 +113,10 @@ export function Dashboard({ gateway, demo }: { gateway: AdminGateway; demo: bool
           </div></div></td>
           <td><StatusBadge status={analysis.status} />{analysis.status === 'processing' && <div className="row-progress"><progress aria-label={`Analysis progress for ${analysis.id}`} max={100} value={analysis.progress} /><span>{analysis.progress}%</span></div>}</td>
           <td className="references-cell">{analysis.status === 'done' ? <><strong>{analysis.totalRefs}</strong><span>references</span></> : <span className="muted">—</span>}</td>
-          <td className="date-cell">{formatDate(analysis.createdAt)}<span>{analysis.createdAt ? analysis.createdAt.getFullYear() : ''}</span></td>
+          <td className="date-cell">{formatDate(analysis.createdAt)}<span>{[analysis.createdAt?.getFullYear(), analysis.requestedBy && `by ${nameOf(analysis.requestedBy)}`].filter(Boolean).join(' · ')}</span></td>
           <td><Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="row-action" aria-label={`View ${analysis.title}`}><ArrowRight size={18} /></Link></td>
         </tr>)}</tbody></table></div> : <div className="empty-state"><Search size={30} /><h3>{summary.total ? 'No matching analyses' : 'Your workspace is ready'}</h3>
-          <p>{summary.total ? 'Try another title, arXiv ID or status.' : 'Analyses will appear here when a user checks a paper.'}</p>
+          <p>{summary.total ? 'Try another title, arXiv ID, status or requester.' : 'Analyses will appear here when a user checks a paper.'}</p>
           {summary.total > 0 && <button className="button secondary" onClick={clear}>Clear filters</button>}</div>}
         <div className="table-footer"><span>{visible.length ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, visible.length)}` : '0'} of {visible.length} analyses{visible.length !== summary.total ? ` · ${summary.total} total` : ''}</span>
           <div className="pagination"><button aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={16} /></button>

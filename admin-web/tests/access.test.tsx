@@ -25,8 +25,8 @@ class FakeGateway implements AdminGateway {
   role: 'admin' | 'user' = 'admin';
   pendingRole = false;
   feed: AnalysisFeed = { fromCache: false, analyses: [
-    parseAnalysis('1706.03762', { paperTitle: 'Attention Is All You Need', status: 'done', summary: { totalRefs: 41 } }),
-    parseAnalysis('1409.0473', { paperTitle: 'Translation paper', status: 'failed' }),
+    parseAnalysis('1706.03762', { paperTitle: 'Attention Is All You Need', status: 'done', summary: { totalRefs: 41 }, requestedBy: 'user-a', aiAssisted: true }),
+    parseAnalysis('1409.0473', { paperTitle: 'Translation paper', status: 'failed', requestedBy: 'user-b', aiAssisted: false }),
     parseAnalysis('1512.03385', { paperTitle: 'Queued paper', status: 'queued' }),
   ] };
   authNext?: (user: AdminUser | null) => void;
@@ -200,6 +200,29 @@ describe('dashboard interactions', () => {
     await userEvent.click(screen.getByText('Try again'));
     await screen.findByText('Your workspace is ready');
     expect(screen.getByLabelText('Total analyses: 0')).toBeInTheDocument();
+  });
+
+  it('filters by requester and check mode, and exports exactly the filtered rows', async () => {
+    const gateway = new FakeGateway(); open(gateway);
+    await screen.findByText('Attention Is All You Need');
+    expect(screen.getByText('by User A')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Requested by' }), 'User A (1)');
+    expect(screen.queryByText('Translation paper')).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Check mode' }), 'Standard');
+    expect(screen.getByText('No matching analyses')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export CSV/ })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Check mode' }), 'AI-assisted');
+    const blobs: Blob[] = [];
+    URL.createObjectURL = vi.fn((blob: Blob) => { blobs.push(blob); return 'blob:test'; });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await userEvent.click(screen.getByRole('button', { name: 'Export CSV (1 analysis)' }));
+    expect(click).toHaveBeenCalledTimes(1);
+    const csv = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blobs[0]); });
+    expect(csv).toContain('Attention Is All You Need');
+    expect(csv).toContain('User A');
+    expect(csv).not.toContain('Translation paper');
+    click.mockRestore();
   });
 
   it('opens analysis results and returns to the overview', async () => {

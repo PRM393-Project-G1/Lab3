@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, BookOpen, ChevronDown, Clock3, FileText, GitBranch } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, BookOpen, ChevronDown, Clock3, FileText, GitBranch, Sparkles } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { buildTopicTree, referenceStatuses, type AnalysisResults, type ReferenceStatus, type TopicNode } from '../domain/analysis';
 import type { AdminGateway } from '../services/gateway';
@@ -49,6 +49,7 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
     <div className="detail-heading"><div className="eyebrow">PAPER ANALYSIS</div><div className="detail-status"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>
       <h1>{analysis.title}</h1><p>{analysis.authors.join(', ') || 'Authors unavailable'}</p>
       <div className="detail-meta"><span><Clock3 size={15} />Requested {formatDate(analysis.createdAt, true)}</span>
+        {analysis.aiAssisted !== null && <span><Sparkles size={15} />{analysis.aiAssisted ? 'AI-assisted check' : 'Standard check'}</span>}
         <a href={`https://arxiv.org/abs/${encodeURIComponent(analysis.id)}`} target="_blank" rel="noopener noreferrer">Open on arXiv<ArrowUpRight size={15} /></a></div>
     </div>
     {analysis.status !== 'done' ? <section className="detail-panel"><h2>Analysis status</h2>

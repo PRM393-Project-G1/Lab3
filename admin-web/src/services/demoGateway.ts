@@ -45,6 +45,7 @@ const analyses = sample.map(([id, title, authors, status, refs, issues], index) 
     progress: { percent: status === 'processing' ? 64 : status === 'done' ? 100 : 0,
       stage: status === 'processing' ? 'fulltext' : 'references' },
     error: status === 'failed' ? failures[id] : null,
+    requestedBy: demoRecipients[index % demoRecipients.length].uid, aiAssisted: index % 4 !== 3,
   });
 });
 
