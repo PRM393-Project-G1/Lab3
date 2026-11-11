@@ -500,3 +500,19 @@ describe('announcement read meter', () => {
     expect(await screen.findByRole('group', { name: 'Opened in the app by 3 of 4 recipients' })).toHaveTextContent('3 of 4 · 75%');
   });
 });
+
+describe('recipient quick select', () => {
+  it('selects users by what happened to their analyses and explains the choice', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/notifications');
+    await screen.findByText('User A');
+    const chips = screen.getByRole('group', { name: 'Quick select' });
+    await userEvent.click(within(chips).getByRole('button', { name: 'Last analysis failed 1' }));
+    expect(screen.getByRole('checkbox', { name: /User B/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /User A/ })).not.toBeChecked();
+    expect(screen.getByText('Selected 1 user: their most recent request ended in an error.')).toBeInTheDocument();
+    await userEvent.click(within(chips).getByRole('button', { name: 'Has push device 1' }));
+    expect(screen.getByRole('checkbox', { name: /User A/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /User B/ })).not.toBeChecked();
+    expect(within(chips).getByRole('button', { name: 'Analysis in progress 0' })).toBeDisabled();
+  });
+});

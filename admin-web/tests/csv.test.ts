@@ -134,3 +134,22 @@ describe('announcement read rates', async () => {
     expect(readRate(parseAnnouncement('r', { ...base, counts: { inboxStored: 2 }, readCount: 5 }))).toBe(1);
   });
 });
+
+describe('recipient segments', async () => {
+  const { recipientSegments } = await import('../src/domain/segments');
+  const { parseUser } = await import('../src/domain/users');
+  const now = new Date(2026, 10, 12);
+  const recipients = ['a', 'b', 'c', 'd'].map((uid) => ({ uid, name: uid, hasDevice: uid === 'a' }));
+  const users = [parseUser('d', { lastSignInAt: new Date(2026, 8, 1) }), parseUser('c', { lastSignInAt: new Date(2026, 10, 10) })];
+  const analyses = [
+    parseAnalysis('1', { requestedBy: 'a', status: 'failed', createdAt: new Date(2026, 10, 1) }),
+    parseAnalysis('2', { requestedBy: 'a', status: 'done', createdAt: new Date(2026, 10, 5) }),
+    parseAnalysis('3', { requestedBy: 'b', status: 'failed', createdAt: new Date(2026, 10, 2) }),
+    parseAnalysis('4', { requestedBy: 'c', status: 'queued', createdAt: new Date(2026, 10, 11) }),
+    parseAnalysis('5', { requestedBy: 'admin', status: 'failed' }),
+  ];
+  it('groups regular users by their latest outcome, activity and device', () => {
+    const groups = Object.fromEntries(recipientSegments(recipients, users, analyses, now).map((segment) => [segment.key, segment.uids]));
+    expect(groups).toEqual({ 'last-failed': ['b'], running: ['c'], never: ['d'], inactive: ['d'], push: ['a'] });
+  });
+});

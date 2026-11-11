@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Bell, CalendarClock, CheckCircle2, Eye, Link2, Search, Send, Users, X } from 'lucide-react';
 import type { Analysis } from '../domain/analysis';
+import { recipientSegments, type Segment } from '../domain/segments';
+import type { DirectoryUser } from '../domain/users';
 import { isScheduled, normalizeDraft, readRate, scheduleLimits, validateDraft, type AnnouncementDraft, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
@@ -30,6 +32,8 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
   const [timing, setTiming] = useState<'now' | 'later'>('now');
   const [when, setWhen] = useState('');
   const [papers, setPapers] = useState<Analysis[]>([]);
+  const [directory, setDirectory] = useState<DirectoryUser[]>([]);
+  const [segmentNote, setSegmentNote] = useState('');
   const [problem, setProblem] = useState('');
   const [success, setSuccess] = useState('');
   const [confirmation, setConfirmation] = useState<AnnouncementDraft | null>(null);
@@ -47,7 +51,9 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
       (error) => { if (active) setHistory({ status: 'error', message: errorMessage(error) }); });
     // Papers to link are optional, so a failed feed only leaves the picker empty.
     const stopPapers = gateway.watchAnalyses((feed) => { if (active) setPapers(feed.analyses); }, () => {});
-    return () => { active = false; stopUsers(); stopHistory(); stopPapers(); };
+    // Sign-in times only refine one quick-select group.
+    const stopDirectory = gateway.watchUsers((data) => { if (active) setDirectory(data); }, () => {});
+    return () => { active = false; stopUsers(); stopHistory(); stopPapers(); stopDirectory(); };
   }, [gateway, retry]);
 
   useEffect(() => {
@@ -61,6 +67,12 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
   const targetCount = audience === 'all' ? users.length : selectedUsers.length;
   const linkable = papers.filter((item) => item.status === 'done' && !item.hidden)
     .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  const segments = recipientSegments(users, directory, papers);
+  function applySegment(segment: Segment) {
+    setSelected(segment.uids.slice(0, 100));
+    setSegmentNote(segment.uids.length > 100 ? `Selected the first 100 of ${segment.uids.length} users in “${segment.label}”.`
+      : `Selected ${segment.uids.length} user${segment.uids.length === 1 ? '' : 's'}: ${segment.description.toLowerCase()}.`);
+  }
   const titleOf = (id: string | undefined) => papers.find((item) => item.id === id)?.title ?? (id ? `arXiv:${id}` : '');
 
   function review(event: FormEvent) {
@@ -110,7 +122,10 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
         {recipients.status === 'loading' ? <p role="status" className="muted">Loading recipients…</p> : recipients.status === 'error' ? <div className="recipient-error"><p role="alert">{recipients.message}</p><button type="button" className="button secondary" onClick={() => setRetry((value) => value + 1)}>Retry recipients</button></div>
           : !users.length ? <div className="notice">No users synced yet. Run the backend notification worker to populate the recipient list.</div>
             : audience === 'selected' ? <div className="recipient-picker"><div className="recipient-picker-heading"><span>{selectedUsers.length} selected / {users.length} users</span>
-              <button type="button" className="plain-button" disabled={!selected.length} onClick={() => setSelected([])}>Clear selection</button></div>
+              <button type="button" className="plain-button" disabled={!selected.length} onClick={() => { setSelected([]); setSegmentNote(''); }}>Clear selection</button></div>
+              <div className="segment-chips" role="group" aria-label="Quick select"><span>Quick select</span>{segments.map((segment) => <button type="button" key={segment.key}
+                className="filter-button" title={segment.description} disabled={!segment.uids.length} onClick={() => applySegment(segment)}>{segment.label} <span>{segment.uids.length}</span></button>)}</div>
+              {segmentNote && <p className="segment-note" role="status">{segmentNote}</p>}
               <div className="search-field"><Search size={16} /><input aria-label="Search notification recipients" placeholder="Search name or UID…" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
               <div className="recipient-list">{visible.map((user) => <label className="recipient-row" key={user.uid}><input type="checkbox" checked={selected.includes(user.uid)}
                 disabled={!selected.includes(user.uid) && selected.length >= 100}
