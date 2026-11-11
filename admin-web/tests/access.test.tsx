@@ -516,3 +516,28 @@ describe('recipient quick select', () => {
     expect(within(chips).getByRole('button', { name: 'Analysis in progress 0' })).toBeDisabled();
   });
 });
+
+describe('activity log', () => {
+  it('merges admin actions and announcements, names people and filters by area and admin', async () => {
+    const gateway = new FakeGateway();
+    gateway.actions = [
+      parseAction('action-retry-0000000000001', { type: 'retryAnalysis', target: '1409.0473', requestedBy: 'admin', status: 'completed', reason: 'Saffron fixed', createdAt: new Date(2026, 10, 10) }),
+      parseAction('action-grant-0000000000001', { type: 'setRole', target: 'user-a', role: 'admin', requestedBy: 'admin', status: 'failed', error: 'Nope', createdAt: new Date(2026, 10, 9) }),
+    ];
+    gateway.announcements = [parseAnnouncement('announcement-log-entry-0001', { title: 'Maintenance', body: 'B', audience: 'all', recipientUids: [],
+      requestedBy: 'admin', status: 'cancelled', createdAt: new Date(2026, 10, 11) })];
+    open(gateway, '/activity');
+    const list = await screen.findByRole('list');
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent('Test admin · Send announcement · Maintenance');
+    expect(items[0]).toHaveTextContent('Cancelled before sending.');
+    expect(within(items[1]).getByRole('link', { name: 'Translation paper' })).toHaveAttribute('href', '/analyses/1409.0473');
+    expect(items[1]).toHaveTextContent('Reason: Saffron fixed');
+    expect(within(items[2]).getByRole('link', { name: 'User A' })).toHaveAttribute('href', '/users/user-a');
+    expect(items[2]).toHaveTextContent('Make admin');
+    await userEvent.click(screen.getByRole('button', { name: 'Users 1' }));
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: 'Admin' })).toBeInTheDocument();
+  });
+});

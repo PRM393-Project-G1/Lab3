@@ -99,7 +99,12 @@ for (const analysis of analyses) {
 }
 
 const analysisObservers = new Set<(feed: AnalysisFeed) => void>();
-const actions: AdminActionRecord[] = [];
+// One earlier action, so the activity log and the stopped paper have a history to show.
+const actions: AdminActionRecord[] = [parseAction('demo-action-stop-layer-norm-0001', {
+  type: 'cancelAnalysis', target: '1607.06450', requestedBy: 'demo-admin', reason: 'No progress for two hours', status: 'completed',
+  result: 'Analysis stopped. The requester sees it as stopped by an administrator.',
+  createdAt: new Date(anchor - 7 * 29 * 3600000 + 3 * 3600000), finishedAt: new Date(anchor - 7 * 29 * 3600000 + 3 * 3600000 + 8000),
+})];
 const actionObservers = new Set<(records: AdminActionRecord[]) => void>();
 const emitAnalyses = () => analysisObservers.forEach((next) => next({ analyses: [...analyses], fromCache: false }));
 const emitActions = () => actionObservers.forEach((next) => next([...actions]));

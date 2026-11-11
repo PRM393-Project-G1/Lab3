@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowRight, ArrowUpRight, BarChart3, Bell, BookOpen, Check, FlaskConical, LayoutDashboard, LogOut, Menu, ShieldCheck, Users as UsersIcon, X, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BarChart3, Bell, BookOpen, Check, FlaskConical, History, LayoutDashboard, LogOut, Menu, ShieldCheck, Users as UsersIcon, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { StatePanel } from './components/ui';
 import { Dashboard } from './pages/Dashboard';
 import { AnalysisDetail } from './pages/AnalysisDetail';
 import { Insights } from './pages/Insights';
 import { Notifications } from './pages/Notifications';
+import { Activity } from './pages/Activity';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
 import { SystemIndicator } from './components/SystemIndicator';
@@ -17,6 +18,7 @@ const sections: { path: string; label: string; icon: LucideIcon }[] = [
   { path: 'insights', label: 'Insights', icon: BarChart3 },
   { path: 'users', label: 'Users', icon: UsersIcon },
   { path: 'notifications', label: 'Notifications', icon: Bell },
+  { path: 'activity', label: 'Activity log', icon: History },
 ];
 import { useAccess } from './hooks/useAccess';
 import { demoGateway } from './services/demoGateway';
@@ -152,6 +154,7 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
         <Route path="insights" element={<Insights gateway={gateway} demo={demo} />} />
         <Route path="users" element={<Users gateway={gateway} demo={demo} />} />
         <Route path="users/:uid" element={<UserDetail gateway={gateway} selfUid={user.uid} />} />
+        <Route path="activity" element={<Activity gateway={gateway} demo={demo} />} />
         <Route path="notifications" element={<Notifications gateway={gateway} demo={demo} system={system} />} />
         <Route path="*" element={<StatePanel title="Page not found"><Link to={base} className="button secondary">Go to overview</Link></StatePanel>} />
       </Routes></main>

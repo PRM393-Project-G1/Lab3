@@ -153,3 +153,21 @@ describe('recipient segments', async () => {
     expect(groups).toEqual({ 'last-failed': ['b'], running: ['c'], never: ['d'], inactive: ['d'], push: ['a'] });
   });
 });
+
+describe('audit log', async () => {
+  const { auditLog, filterAudit } = await import('../src/domain/audit');
+  const { parseAction } = await import('../src/domain/actions');
+  const { parseAnnouncement } = await import('../src/domain/notifications');
+  it('orders newest first and maps outcomes from both queues', () => {
+    const log = auditLog([
+      parseAction('a1', { type: 'hideAnalysis', target: '1706.03762', requestedBy: 'x', status: 'queued', createdAt: new Date(2026, 0, 2) }),
+      parseAction('a2', { type: 'setDisabled', target: 'u', disabled: true, requestedBy: 'y', status: 'completed', createdAt: new Date(2026, 0, 1) }),
+    ], [parseAnnouncement('n1', { title: 'Hello', body: 'B', audience: 'selected', recipientUids: ['u'], requestedBy: 'x', status: 'partial',
+      error: 'Some push attempts need review.', sendAt: new Date(2026, 0, 5), createdAt: new Date(2026, 0, 3) })]);
+    expect(log.map((entry) => [entry.id, entry.kind, entry.action, entry.outcome])).toEqual([
+      ['n1', 'announcement', 'Schedule announcement', 'done'], ['a1', 'analysis', 'Hide results', 'pending'], ['a2', 'user', 'Disable account', 'done']]);
+    expect(log[0].detail).toBe('1 selected users · Some push attempts need review.');
+    expect(filterAudit(log, 'all', 'y').map((entry) => entry.id)).toEqual(['a2']);
+    expect(filterAudit(log, 'analysis', '').map((entry) => entry.id)).toEqual(['a1']);
+  });
+});

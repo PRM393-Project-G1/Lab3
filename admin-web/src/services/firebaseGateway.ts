@@ -107,7 +107,7 @@ export function getFirebaseGateway(): AdminGateway {
     }, error),
     getWeakRule: weakRule,
     watchWorkers: (next, error) => onSnapshot(collection(db, 'workerStatus'), (snapshot) => next(snapshot.docs.map((item) => parseWorker(item.id, item.data()))), error),
-    watchActions: (next, error) => onSnapshot(query(collection(db, 'adminActions'), orderBy('createdAt', 'desc'), limit(50)),
+    watchActions: (next, error) => onSnapshot(query(collection(db, 'adminActions'), orderBy('createdAt', 'desc'), limit(100)),
       (snapshot) => next(snapshot.docs.map((item) => parseAction(item.id, item.data()))), error),
     async requestAction(id, raw) {
       const draft = normalizeAction(raw);
