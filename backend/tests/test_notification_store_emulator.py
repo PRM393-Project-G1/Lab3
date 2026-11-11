@@ -132,3 +132,17 @@ def test_scheduled_requests_wait_until_due_and_cancelled_ones_never_run(store):
     assert store.claim("emulator-scheduled-future-1", "worker") is None
     assert store.claim("emulator-scheduled-cancelled", "worker") is None
     assert store.claim("emulator-scheduled-due-0001", "worker") is not None
+
+
+def test_read_counts_cover_recently_finished_requests_only(store):
+    db = store._db
+    now = datetime.now(timezone.utc)
+    requests = db.collection("adminNotificationRequests")
+    requests.document("emulator-reads-recent-0001").set({"status": "completed", "finishedAt": now - timedelta(days=1)})
+    requests.document("emulator-reads-old-000001").set({"status": "completed", "finishedAt": now - timedelta(days=30)})
+    for uid, read in (("reader-a", True), ("reader-b", True), ("reader-c", False)):
+        for request_id in ("emulator-reads-recent-0001", "emulator-reads-old-000001"):
+            db.document(f"users/{uid}/notifications/admin-{request_id}").set({"requestId": request_id, "read": read})
+    store.refresh_read_counts()
+    assert requests.document("emulator-reads-recent-0001").get().to_dict()["readCount"] == 2
+    assert "readCount" not in requests.document("emulator-reads-old-000001").get().to_dict()

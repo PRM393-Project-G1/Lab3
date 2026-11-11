@@ -22,9 +22,11 @@ class FakeNotificationStore:
         self.revoke_after_first = False
         self.synced = 0
         self.heartbeats = []
+        self.read_refreshes = 0
 
     def sync_directory(self): self.synced += 1
     def heartbeat(self, name, fields): self.heartbeats.append((name, fields["state"]))
+    def refresh_read_counts(self): self.read_refreshes += 1
     def interrupt_stale(self): pass
     def queued_ids(self): return [key for key, value in self.requests.items() if value["status"] == "queued"]
     def claim(self, request_id, owner):
@@ -169,3 +171,19 @@ def test_a_linked_paper_travels_with_the_message_and_bad_links_fail_safely():
         store.requests[REQUEST_ID]["analysisId"] = value
         NotificationWorker(store).tick()
         assert store.requests[REQUEST_ID]["status"] == "failed" and not store.inbox
+
+
+def test_read_counts_refresh_on_their_own_schedule_and_never_block_sending():
+    store = FakeNotificationStore()
+    worker = NotificationWorker(store)
+    worker.tick()
+    worker.tick()
+    assert store.read_refreshes == 1
+
+    def broken():
+        raise RuntimeError("index still building")
+
+    store = FakeNotificationStore()
+    store.refresh_read_counts = broken
+    NotificationWorker(store).tick()
+    assert store.requests[REQUEST_ID]["status"] == "completed"

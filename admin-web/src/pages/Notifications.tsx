@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Bell, CalendarClock, CheckCircle2, Link2, Search, Send, Users, X } from 'lucide-react';
+import { Bell, CalendarClock, CheckCircle2, Eye, Link2, Search, Send, Users, X } from 'lucide-react';
 import type { Analysis } from '../domain/analysis';
-import { isScheduled, normalizeDraft, scheduleLimits, validateDraft, type AnnouncementDraft, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
+import { isScheduled, normalizeDraft, readRate, scheduleLimits, validateDraft, type AnnouncementDraft, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel, formatDate } from '../components/ui';
@@ -160,6 +160,17 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
 
 function BookIcon() { return <Bell size={14} />; }
 
+/** Opened in the app inbox, as a thin meter with the numbers beside it. */
+function ReadMeter({ request }: { request: AnnouncementRequest }) {
+  const rate = readRate(request);
+  if (rate === null) return <p className="read-meter pending">Opened in the app: counted every 15 minutes during the first week.</p>;
+  return <div className="read-meter" role="group" aria-label={`Opened in the app by ${request.readCount} of ${request.counts.inboxStored} recipients`}>
+    <span className="read-label"><Eye size={13} />Opened in the app</span>
+    <span className="read-track" aria-hidden="true"><span style={{ width: `${rate * 100}%` }} /></span>
+    <strong>{request.readCount} of {request.counts.inboxStored} · {Math.round(rate * 100)}%</strong>
+  </div>;
+}
+
 function HistoryItem({ request, paperTitle, gateway }: { request: AnnouncementRequest; paperTitle: string; gateway: AdminGateway }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -187,6 +198,7 @@ function HistoryItem({ request, paperTitle, gateway }: { request: AnnouncementRe
       : <button className="plain-button cancel-link" onClick={() => setConfirming(true)}>Cancel this message</button>)}
     {failure && <p role="alert" className="form-error">{failure}</p>}
     {request.error && <p className="announcement-error">{request.error}</p>}
+    {(request.status === 'completed' || request.status === 'partial') && <ReadMeter request={request} />}
     {!pending && request.status !== 'cancelled' && <p className="delivery-footnote">FCM acceptance is not confirmation that a device displayed or read the notification.</p>}
   </article>;
 }

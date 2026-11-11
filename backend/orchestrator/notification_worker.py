@@ -17,6 +17,7 @@ ADMIN_MESSAGE = "admin_message"
 REQUESTS = "adminNotificationRequests"
 DIRECTORY = "adminUserDirectory"
 HEARTBEAT_NAME = "notifications"
+READ_REFRESH_SECONDS = 15 * 60
 ANALYSIS_ID = re.compile(r"\d{4}\.\d{4,5}")
 
 
@@ -88,6 +89,7 @@ class NotificationStore(Protocol):
     def send_push(self, uid: str, tokens: list[str], request_id: str, announcement: Announcement) -> PushResult: ...
     def update(self, request_id: str, owner: str, fields: dict[str, Any]) -> None: ...
     def heartbeat(self, name: str, fields: dict[str, Any]) -> None: ...
+    def refresh_read_counts(self) -> None: ...
 
 
 class NotificationWorker:
@@ -96,12 +98,20 @@ class NotificationWorker:
         self._owner = str(uuid.uuid4())
         self._poll_seconds = poll_seconds
         self._last_sync = float("-inf")
+        self._last_reads = float("-inf")
 
     def tick(self) -> None:
         if time.monotonic() - self._last_sync >= 60:
             self._store.sync_directory()
             self._store.interrupt_stale()
             self._last_sync = time.monotonic()
+        if time.monotonic() - self._last_reads >= READ_REFRESH_SECONDS:
+            # Reads trickle in for days; a periodic count is cheaper than a write per open.
+            try:
+                self._store.refresh_read_counts()
+            except Exception:
+                logger.warning("Could not refresh announcement read counts", exc_info=True)
+            self._last_reads = time.monotonic()
         for request_id in self._store.queued_ids():
             self.process(request_id)
 

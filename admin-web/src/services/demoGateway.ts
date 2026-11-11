@@ -224,7 +224,9 @@ export const demoGateway: AdminGateway = {
       return;
     }
     announcements.unshift(parseAnnouncement(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'completed',
-      counts: { recipients: targets.length, inboxStored: targets.length, pushAccepted: withDevice, withoutDevice: targets.length - withDevice } }));
+      counts: { recipients: targets.length, inboxStored: targets.length, pushAccepted: withDevice, withoutDevice: targets.length - withDevice },
+      // Sample engagement so the read meter has something to show.
+      readCount: Math.ceil(targets.length / 2), readCheckedAt: new Date() }));
     announcementObservers.forEach((next) => next([...announcements]));
   },
 };

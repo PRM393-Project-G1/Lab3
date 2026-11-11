@@ -165,5 +165,23 @@ class FirebaseNotificationStore:
 
         update(self._db.transaction())
 
+    def refresh_read_counts(self, days: int = 7) -> None:
+        """Counts opened inbox items for recently finished requests.
+
+        One count aggregation per request (a read per 1,000 items) instead of
+        reading every inbox item. Needs the collection-group index on
+        notifications (requestId, read) from firestore.indexes.json.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        recent = self._db.collection(REQUESTS).where(filter=FieldFilter("finishedAt", ">=", cutoff)).stream()
+        for snapshot in recent:
+            if (snapshot.to_dict() or {}).get("status") not in ("completed", "partial"):
+                continue
+            query = (self._db.collection_group("notifications")
+                     .where(filter=FieldFilter("requestId", "==", snapshot.id))
+                     .where(filter=FieldFilter("read", "==", True)))
+            count = int(query.count().get()[0][0].value)
+            snapshot.reference.update({"readCount": count, "readCheckedAt": firestore.SERVER_TIMESTAMP})
+
     def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
         self._db.collection(WORKER_STATUS).document(name).set({**fields, "lastSeen": firestore.SERVER_TIMESTAMP}, merge=True)

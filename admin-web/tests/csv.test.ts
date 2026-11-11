@@ -123,3 +123,14 @@ describe('scheduled announcement drafts', async () => {
     expect(parseAnnouncement('r', { ...base, status: 'cancelled' }).status).toBe('cancelled');
   });
 });
+
+describe('announcement read rates', async () => {
+  const { parseAnnouncement, readRate } = await import('../src/domain/notifications');
+  const base = { title: 'T', body: 'B', audience: 'all' as const, recipientUids: [], status: 'completed' };
+  it('divides opened items by stored ones and waits for the first count', () => {
+    expect(readRate(parseAnnouncement('r', { ...base, counts: { inboxStored: 4 }, readCount: 3 }))).toBe(0.75);
+    expect(readRate(parseAnnouncement('r', { ...base, counts: { inboxStored: 4 } }))).toBeNull();
+    expect(readRate(parseAnnouncement('r', { ...base, counts: { inboxStored: 0 }, readCount: 0 }))).toBeNull();
+    expect(readRate(parseAnnouncement('r', { ...base, counts: { inboxStored: 2 }, readCount: 5 }))).toBe(1);
+  });
+});

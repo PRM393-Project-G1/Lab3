@@ -16,6 +16,8 @@ export interface AnnouncementCounts {
 export interface AnnouncementRequest extends AnnouncementDraft {
   id: string; requestedBy: string; createdAt: Date | null; status: AnnouncementStatus;
   counts: AnnouncementCounts; error: string | null;
+  /** Inbox items opened in the app, counted by the worker every 15 minutes for a week. */
+  readCount: number | null; readCheckedAt: Date | null;
 }
 
 export function normalizeDraft(draft: AnnouncementDraft): AnnouncementDraft {
@@ -53,6 +55,8 @@ export function parseAnnouncement(id: string, raw: RawDocument): AnnouncementReq
     requestedBy: typeof raw.requestedBy === 'string' ? raw.requestedBy : '', createdAt: date(raw.createdAt),
     status: states.includes(raw.status as string) ? raw.status as AnnouncementStatus : 'unknown',
     error: typeof raw.error === 'string' ? raw.error : null,
+    readCount: typeof raw.readCount === 'number' && Number.isFinite(raw.readCount) ? Math.max(0, raw.readCount) : null,
+    readCheckedAt: date(raw.readCheckedAt),
     counts: { recipients: number('recipients'), inboxStored: number('inboxStored'), pushAccepted: number('pushAccepted'),
       pushFailed: number('pushFailed'), pushUnknown: number('pushUnknown'), withoutDevice: number('withoutDevice'), skipped: number('skipped'), inboxFailed: number('inboxFailed') },
   };
@@ -61,4 +65,9 @@ export function parseAnnouncement(id: string, raw: RawDocument): AnnouncementReq
 /** Queued for later and not yet due. */
 export function isScheduled(request: AnnouncementRequest, now = new Date()): boolean {
   return request.status === 'queued' && !!request.sendAt && request.sendAt > now;
+}
+
+/** Share of stored inbox items that were opened, or null before the first count. */
+export function readRate(request: AnnouncementRequest): number | null {
+  return request.readCount === null || !request.counts.inboxStored ? null : Math.min(1, request.readCount / request.counts.inboxStored);
 }

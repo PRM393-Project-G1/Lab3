@@ -490,3 +490,13 @@ describe('scheduled announcements', () => {
     expect(gateway.queueAnnouncement).not.toHaveBeenCalled();
   });
 });
+
+describe('announcement read meter', () => {
+  it('shows how many recipients opened a delivered message', async () => {
+    const gateway = new FakeGateway();
+    gateway.announcements = [parseAnnouncement('announcement-read-meter-0001', { title: 'Delivered', body: 'Body', audience: 'all', recipientUids: [],
+      requestedBy: 'admin', status: 'completed', createdAt: new Date(), counts: { recipients: 4, inboxStored: 4 }, readCount: 3, readCheckedAt: new Date() })];
+    open(gateway, '/notifications');
+    expect(await screen.findByRole('group', { name: 'Opened in the app by 3 of 4 recipients' })).toHaveTextContent('3 of 4 · 75%');
+  });
+});
