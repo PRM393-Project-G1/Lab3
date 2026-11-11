@@ -487,6 +487,39 @@ void main() {
   });
 
   group('Flow C', () {
+    testWidgets('admin announcement opens its full message and marks it read', (
+      tester,
+    ) async {
+      const body =
+          'Realtron will receive a maintenance update. Your existing paper results remain available.';
+      firestore.notifications = [
+        AppNotification(
+          id: 'admin-notice',
+          title: 'A message from Realtron',
+          body: body,
+          type: 'admin_message',
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/notifications');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A message from Realtron'));
+      await tester.pumpAndSettle();
+      expect(firestore.readIds, ['admin-notice']);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text(body),
+        ),
+        findsOneWidget,
+      );
+      expect(router.state.uri.path, '/notifications');
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
     setUp(() {
       library.entries = [LibraryEntry(arxivId: id, addedAt: DateTime.now())];
     });

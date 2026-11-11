@@ -19,6 +19,8 @@ PRM393 Lab 3. App Android (Flutter + Firebase). Backend do nhóm chạy trên la
 | Bàn giao Flutter | [handoff/flutter-handoff.md](handoff/flutter-handoff.md) |
 | Truy vết thiết kế | [docs/design-traceability.md](docs/design-traceability.md) |
 | Kiến trúc | [docs/architecture.md](docs/architecture.md) |
+| Web Admin Dashboard và cách cấp role demo | [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) |
+| Admin gửi thông báo và host web | [docs/ADMIN_NOTIFICATIONS.md](docs/ADMIN_NOTIFICATIONS.md) |
 | Sự kiện Analytics | [docs/analytics-plan.md](docs/analytics-plan.md) |
 | Test plan, test E2E | [docs/test-plan.md](docs/test-plan.md), [e2e_test/](e2e_test/README.md) |
 | Cấu hình Firebase | [firebase/README.md](firebase/README.md) |
@@ -47,6 +49,20 @@ flutter test
 ```bash
 flutter run
 ```
+
+## Web admin
+
+Web admin nằm riêng trong [`admin-web/`](admin-web/README.md), chạy bằng trình duyệt, không cần Flutter hay điện thoại:
+
+```bash
+cd admin-web
+npm ci
+npm run dev
+```
+
+Mở `http://localhost:5173/demo` để thử bằng dữ liệu minh họa. Kết nối Firebase thật và cấp role admin theo [`docs/ADMIN_DASHBOARD.md`](docs/ADMIN_DASHBOARD.md).
+
+Menu **Notifications** hỗ trợ gửi tất cả hoặc chọn user. Thử giao diện tại `/demo/notifications`; gửi thật cần publish Rules mới và chạy worker theo [`docs/ADMIN_NOTIFICATIONS.md`](docs/ADMIN_NOTIFICATIONS.md). File cấu hình Firebase Hosting đã có trong `admin-web/`.
 
 ## AI đã dùng
 
