@@ -4,11 +4,19 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 /// A push the user can act on.
 class PushMessage {
-  const PushMessage({required this.title, this.body, this.analysisId});
+  const PushMessage({
+    required this.title,
+    this.body,
+    this.analysisId,
+    this.type = 'analysis_done',
+  });
 
   final String title;
   final String? body;
   final String? analysisId;
+  final String type;
+
+  bool get isAdminMessage => type == 'admin_message';
 }
 
 abstract class MessagingService {
@@ -44,9 +52,12 @@ class FirebaseMessagingService implements MessagingService {
   bool _listening = false;
 
   PushMessage _map(RemoteMessage m) => PushMessage(
-    title: m.notification?.title ?? 'Analysis done',
+    title:
+        m.notification?.title ??
+        (m.data['type'] == 'admin_message' ? 'Realtron' : 'Analysis done'),
     body: m.notification?.body,
     analysisId: m.data['analysisId'] as String?,
+    type: m.data['type'] as String? ?? 'analysis_done',
   );
 
   @override

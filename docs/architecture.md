@@ -22,6 +22,7 @@ lib/
 test/                      # Unit test ViewModel (service giả), widget test design system
 e2e_test/                  # Test ARTEMIS (pytest)
 backend/                   # Orchestrator FastAPI: chạy RefChecker, Saffron; ghi Firestore, gửi FCM
+admin-web/                 # React/TypeScript/Vite: dashboard và gửi thông báo admin
 firebase/                  # storage.rules, firestore.rules, indexes, remote-config-defaults.json
 design/                    # Persona, flow, DESIGN.md, nhật ký AI, ảnh Stitch
 handoff/                   # flutter-handoff.md
@@ -154,10 +155,14 @@ sequenceDiagram
 | `users/{uid}` | `displayName`, `photoUrl`, `createdAt`, `fcmTokens[]`, `role` | App |
 | `users/{uid}/library/{arxivId}` | `customTitle`, `addedAt`, `lastOpenedAt` | App |
 | `users/{uid}/reports/{id}` | `analysisId`, `storagePath`, `downloadUrl`, `sizeKb`, `createdAt`. Chỉ ghi khi `enable_cloud_upload` bật | App |
-| `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId`, `createdAt`, `read` | Backend; app chỉ đổi `read` |
+| `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId` (analysis_done) hoặc `requestId` (admin_message), `createdAt`, `read` | Backend; app chỉ đổi `read` |
+| `adminUserDirectory/{uid}` | `displayName`, `hasDevice`, `updatedAt` | Worker; admin chỉ đọc, không chứa token |
+| `adminNotificationRequests/{id}` | `title`, `body`, `audience`, `recipientUids[]`, `requestedBy`, `createdAt`, `status`, `counts`, `error` | Admin chỉ tạo queued; worker claim và ghi kết quả |
 | `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `finishedAt`, `error` | Backend |
 | `analyses/{id}/references/{refId}` | `index`, `title`, `authors[]`, `year`, `venue`, `url`, `status`, `issues[]`, `hallucination`, `textSource`, `topicIds[]` | Backend |
 | `analyses/{id}/topics/{topicId}` | `term`, `parentId`, `depth`, `score`, `refIds[]`, `counts` | Backend |
+
+Luồng thông báo admin: web tạo yêu cầu → worker kiểm tra role và người nhận → lưu inbox → FCM. Worker chạy cùng FastAPI hoặc độc lập; xem [`ADMIN_NOTIFICATIONS.md`](ADMIN_NOTIFICATIONS.md). Web không giữ service account hay đọc token thiết bị của user khác.
 
 **Các trường app đọc mà backend phải ghi đúng tên:**
 
@@ -173,6 +178,8 @@ sequenceDiagram
 | `fcmTokens[]` | Bỏ qua và xoá token không còn hợp lệ | App xoá token của máy khi đăng xuất |
 
 Luật truy cập nằm ở `firebase/firestore.rules` và `firebase/storage.rules`. Người dùng chỉ đọc và ghi dữ liệu của mình, không tự đổi được `role`, không ghi được `analyses/**`. File PDF chỉ nhận `application/pdf` dưới 10 MB.
+
+Web admin riêng trong `admin-web/` dùng React + TypeScript + Vite, đọc role từ `users/{uid}` và theo dõi toàn bộ collection `analyses`; chỉ role `admin` được query danh sách này theo Firestore Rules. Người dùng Android đã đăng nhập vẫn đọc được từng analysis theo ID và các references/topics như trước. Web admin không cần cấu hình backend; Firebase Web app config và role admin là điều kiện để đọc dữ liệu thật. Chế độ `/demo` dùng fixture riêng và không kết nối Firebase. Chi tiết cấp role, kiểm thử và demo: [`ADMIN_DASHBOARD.md`](ADMIN_DASHBOARD.md).
 
 ## 8. API backend (qua Tailscale)
 

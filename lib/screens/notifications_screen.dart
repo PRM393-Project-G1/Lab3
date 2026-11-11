@@ -42,6 +42,20 @@ class NotificationsScreen extends StatelessWidget {
                 final analysisId = await vm.open(item);
                 if (analysisId != null && context.mounted) {
                   context.push(AppRoutes.overview(analysisId));
+                } else if (item.type == 'admin_message' && context.mounted) {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(item.title),
+                      content: SingleChildScrollView(child: Text(item.body)),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  );
                 }
               },
             );

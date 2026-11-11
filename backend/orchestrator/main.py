@@ -18,6 +18,7 @@ from .jobs import JobManager, Pipeline
 from .ports import AnalysisSteps, AnalysisStore
 from .steps import Steps
 from .uploads import CloudinarySigner
+from .notification_worker import NotificationWorker
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ def create_app(
     verify_token: Callable[[str], str],
     steps: AnalysisSteps,
     signer: CloudinarySigner | None = None,
+    notifications: NotificationWorker | None = None,
 ) -> FastAPI:
     """Builds the API around its dependencies, so the tests can pass in fakes."""
 
@@ -50,9 +52,17 @@ def create_app(
         interrupted = await asyncio.to_thread(store.fail_interrupted)
         if interrupted:
             logger.warning("Marked %d interrupted analyses as failed", interrupted)
-        yield
-        # What was running is marked as interrupted on the next start.
-        await app.state.manager.cancel_all()
+        stop_notifications = asyncio.Event()
+        notification_task = asyncio.create_task(notifications.run(stop_notifications)) if notifications else None
+        try:
+            yield
+        finally:
+            # Let a push attempt finish instead of cancelling midway and losing its outcome.
+            stop_notifications.set()
+            if notification_task:
+                await notification_task
+            # What was running is marked as interrupted on the next start.
+            await app.state.manager.cancel_all()
 
     app = FastAPI(title="Realtron", version=__version__, lifespan=lifespan)
 
@@ -113,6 +123,7 @@ def create_app(
 def build_app() -> FastAPI:
     """For uvicorn: `uvicorn --factory orchestrator.main:build_app`."""
     from .store import FirebaseStore, verify_token
+    from .notification_store import FirebaseNotificationStore
 
     logging.basicConfig(level=logging.INFO)
     key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
@@ -121,4 +132,5 @@ def build_app() -> FastAPI:
     signer = CloudinarySigner.from_env()
     if signer is None:
         logger.warning("No CLOUDINARY_* settings: report uploads are off")
-    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()), signer)
+    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()), signer,
+        notifications=NotificationWorker(FirebaseNotificationStore()))
