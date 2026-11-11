@@ -27,23 +27,34 @@ const sample = [
   ['1502.03167', 'Batch Normalization: Accelerating Deep Network Training', ['Sergey Ioffe', 'Christian Szegedy'], 'failed', 0, 0],
 ] as const;
 
-const analyses = sample.map(([id, title, authors, status, refs, issues], index) => parseAnalysis(id, {
-  paperTitle: title, paperAuthors: [...authors], status,
-  createdAt: new Date(anchor - index * 3600000 * 4),
-  finishedAt: status === 'done' ? new Date(anchor - index * 3600000 * 4 + 120000) : null,
-  summary: { totalRefs: refs, verified: Math.max(0, refs - issues - (refs ? 2 : 0)), error: issues,
-    warning: refs ? 1 : 0, unverified: refs ? 1 : 0, hallucinated: 0 },
-  progress: { percent: status === 'processing' ? 64 : status === 'done' ? 100 : 0,
-    stage: status === 'processing' ? 'fulltext' : 'references' },
-  error: status === 'failed' ? "Couldn't extract topics. Check the Saffron service and try again from the user app." : null,
-}));
+// Spread over about two weeks so the insight charts have a shape to show.
+const fabricated: Record<string, number> = { '1810.04805': 2, '1406.2661': 1 };
+const failures: Record<string, string> = {
+  '1508.04025': "Couldn't extract topics. Check the Saffron service and try again from the user app.",
+  '1502.03167': 'The server restarted. Try again.',
+};
+const analyses = sample.map(([id, title, authors, status, refs, issues], index) => {
+  const requested = anchor - index * 3600000 * 29;
+  const hallucinated = fabricated[id] ?? 0;
+  return parseAnalysis(id, {
+    paperTitle: title, paperAuthors: [...authors], status,
+    createdAt: new Date(requested),
+    finishedAt: status === 'done' ? new Date(requested + (3 + refs / 3) * 60000) : null,
+    summary: { totalRefs: refs, verified: Math.max(0, refs - issues - hallucinated - (refs ? 2 : 0)), error: issues,
+      warning: refs ? 1 : 0, unverified: refs ? 1 : 0, hallucinated },
+    progress: { percent: status === 'processing' ? 64 : status === 'done' ? 100 : 0,
+      stage: status === 'processing' ? 'fulltext' : 'references' },
+    error: status === 'failed' ? failures[id] : null,
+  });
+});
 
 function results(id: string): AnalysisResults {
   const analysis = analyses.find((item) => item.id === id);
   if (!analysis) throw Object.assign(new Error('Not found'), { code: 'not-found' });
+  const { hallucinated, error } = analysis.counts;
   const references = Array.from({ length: analysis.totalRefs }, (_, index) => {
-    const status = index < analysis.counts.error ? 'error' : index === analysis.counts.error ? 'warning'
-      : index === analysis.counts.error + 1 ? 'unverified' : 'verified';
+    const status = index < hallucinated ? 'hallucinated' : index < hallucinated + error ? 'error' : index === hallucinated + error ? 'warning'
+      : index === hallucinated + error + 1 ? 'unverified' : 'verified';
     const titles = ['Sequence to Sequence Learning with Neural Networks', 'Neural Machine Translation by Jointly Learning to Align and Translate',
       'Adam: A Method for Stochastic Optimization', 'Layer Normalization', 'Deep Residual Learning for Image Recognition'];
     const reference = parseReference(`ref-${String(index + 1).padStart(3, '0')}`, {
@@ -51,6 +62,7 @@ function results(id: string): AnalysisResults {
       status, topicIds: [index < 3 ? 'attention' : index % 2 ? 'optimization' : 'representation'],
       issues: status === 'error' ? [{ type: 'year', message: 'Publication year differs from the source record.', cited: '2013', actual: '2014' }]
         : status === 'warning' ? [{ type: 'title', message: 'Minor title formatting difference.' }] : [],
+      hallucination: status === 'hallucinated' ? { explanation: 'No publication with this title, venue and author list could be found.' } : null,
     });
     return reference;
   });

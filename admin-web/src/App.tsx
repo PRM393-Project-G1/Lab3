@@ -1,10 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowRight, ArrowUpRight, Bell, BookOpen, Check, FlaskConical, LayoutDashboard, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BarChart3, Bell, BookOpen, Check, FlaskConical, LayoutDashboard, LogOut, Menu, ShieldCheck, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { StatePanel } from './components/ui';
 import { Dashboard } from './pages/Dashboard';
 import { AnalysisDetail } from './pages/AnalysisDetail';
+import { Insights } from './pages/Insights';
 import { Notifications } from './pages/Notifications';
+
+/** Sidebar order; the first entry is the workspace root. */
+const sections: { path: string; label: string; icon: LucideIcon }[] = [
+  { path: '', label: 'Overview', icon: LayoutDashboard },
+  { path: 'insights', label: 'Insights', icon: BarChart3 },
+  { path: 'notifications', label: 'Notifications', icon: Bell },
+];
 import { useAccess } from './hooks/useAccess';
 import { demoGateway } from './services/demoGateway';
 import { invalidWebAppId, missingConfig } from './services/firebaseConfig';
@@ -107,9 +115,9 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
   const [failure, setFailure] = useState('');
   const location = useLocation();
   const base = demo ? '/demo' : '/';
+  const prefix = demo ? '/demo' : '';
   const detail = location.pathname.includes('/analyses/');
-  const notifications = location.pathname.endsWith('/notifications');
-  const notificationsPath = demo ? '/demo/notifications' : '/notifications';
+  const section = sections.find((item) => item.path && location.pathname.endsWith(`/${item.path}`)) ?? sections[0];
   async function leave() {
     setSigningOut(true); setFailure('');
     try { await gateway.signOut(); } catch (error) { setFailure(errorMessage(error)); setSigningOut(false); }
@@ -118,20 +126,24 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
     {menuOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
     <aside id="workspace-navigation" className={`sidebar ${menuOpen ? 'open' : ''}`}><Link to={base} className="brand-link" aria-label="Realtron overview" onClick={() => setMenuOpen(false)}><Brand /></Link>
       <span className="workspace-label">ADMIN WORKSPACE</span><div className="nav-caption">WORKSPACE</div>
-      <nav aria-label="Main navigation"><Link to={base} aria-current={!detail && !notifications ? 'page' : undefined} className={`nav-link ${notifications ? '' : 'active'}`} onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} />Overview{!notifications && <span className="nav-dot" />}</Link>
-        <Link to={notificationsPath} aria-current={notifications ? 'page' : undefined} className={`nav-link ${notifications ? 'active' : ''}`} onClick={() => setMenuOpen(false)}><Bell size={18} />Notifications{notifications && <span className="nav-dot" />}</Link></nav>
+      <nav aria-label="Main navigation">{sections.map(({ path, label, icon: Icon }) => {
+        const current = section.path === path;
+        return <Link key={label} to={path ? `${prefix}/${path}` : base} aria-current={current && !detail ? 'page' : undefined} className={`nav-link ${current ? 'active' : ''}`}
+          onClick={() => setMenuOpen(false)}><Icon size={18} />{label}{current && <span className="nav-dot" />}</Link>;
+      })}</nav>
       <div className="sidebar-context"><span className="sidebar-context-icon"><BookOpen size={19} /></span><h3>A clearer perspective.</h3><p>Follow the papers.<br />Understand the references.</p></div>
       <div className="sidebar-footer"><span className="avatar">{user.name[0]?.toUpperCase() || 'A'}</span><div><strong>{demo ? 'Demo workspace' : user.name}</strong><span>Administrator</span></div>
         {demo ? <Link to="/" aria-label="Exit demo" className="icon-button"><LogOut size={17} /></Link> : <button aria-label="Sign out" className="icon-button" disabled={signingOut} onClick={leave}><LogOut size={17} /></button>}</div>
     </aside>
     <div className="workspace-body"><header className="workspace-header"><div className="header-left"><button className="icon-button mobile-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
-      <span className="breadcrumb">Workspace<span>/</span><strong>{notifications ? 'Notifications' : detail ? 'Paper details' : 'Overview'}</strong></span></div>
+      <span className="breadcrumb">Workspace<span>/</span><strong>{detail ? 'Paper details' : section.label}</strong></span></div>
       <span className={`workspace-badge ${demo ? 'demo' : ''}`}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}{demo ? 'Demo workspace' : 'Admin access'}</span></header>
       {demo && <div className="demo-banner"><span><FlaskConical size={15} /><strong>Sample data</strong><span className="demo-description">Explore freely. This workspace is separate from Firebase.</span></span><Link to="/">Connect real data<ArrowUpRight size={14} /></Link></div>}
       {failure && <p role="alert" className="form-error workspace-error">{failure}</p>}
       <main className="main-content" id="main-content" tabIndex={-1}><Routes>
         <Route index element={<Dashboard gateway={gateway} demo={demo} />} />
         <Route path="analyses/:analysisId" element={<AnalysisDetail gateway={gateway} />} />
+        <Route path="insights" element={<Insights gateway={gateway} demo={demo} />} />
         <Route path="notifications" element={<Notifications gateway={gateway} demo={demo} />} />
         <Route path="*" element={<StatePanel title="Page not found"><Link to={base} className="button secondary">Go to overview</Link></StatePanel>} />
       </Routes></main>
