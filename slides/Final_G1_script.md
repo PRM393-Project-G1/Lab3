@@ -399,7 +399,7 @@ Mẹo để nói trơn tru:
 
 # P4 · PROOF
 
-## Slide 20 · Testing & Verification (50 giây)
+## Slide 20 · Testing & Verification (1 phút)
 
 **Câu chốt:** Hệ thống được kiểm ở bốn mức: unit, backend, E2E và bằng chứng trên Console.
 
@@ -407,7 +407,11 @@ Mẹo để nói trơn tru:
 
 > `[chỉ ba con số]` 83 trên 83 ca test backend pass. 141 test Flutter cho ViewModel, model và design system. 19 ca E2E bằng Google ARTEMIS.
 >
-> `[đi qua bảng]` Unit và widget test của Flutter dùng service giả: [đọc kết quả flutter test]. Test backend bằng pytest phủ API, job, chữ ký upload và việc sửa file `.bbl`: 83 trên 83 pass. E2E bằng ARTEMIS chạy trên điện thoại thật với Firebase và backend thật, mỗi ca ba lần: [đọc pass rate]. Mỗi dịch vụ Firebase có ảnh Console làm bằng chứng. AI code review có 10 finding, 8 chấp nhận, 2 sửa theo cách khác, đều có commit.
+> `[đi qua bảng]` Unit và widget test của Flutter dùng service giả: [đọc kết quả flutter test]. Test backend bằng pytest phủ API, job, chữ ký upload và việc sửa file `.bbl`: 83 trên 83 pass.
+>
+> `[chỉ hàng E2E]` E2E: nhóm viết 19 ca và đã chạy TC-03 hai lần trên emulator Android, với Firebase và backend thật. Cả hai lần agent đều mở đúng bài 1706.03762 và đọc đúng 40 reference, 40 topics · 0 weak. Lần 1 test fail vì profile Flash để trống output, test không có JSON để kiểm; nhóm sửa bộ test để đọc JSON ở bước báo cáo cuối của agent. Lần 2 đạt cả 5 assert, kể cả sự kiện `search`. Các ca còn lại chưa chạy.
+>
+> Mỗi dịch vụ Firebase có ảnh Console làm bằng chứng. AI code review có 10 finding, 8 chấp nhận, 2 sửa theo cách khác, đều có commit.
 >
 > `[chỉ dải dưới]` Mỗi business rule có test riêng: BR-01 là TC-04, BR-02 là TC-03, BR-04 là TC-06 và test TopicTree, BR-06 là test chữ ký upload ở backend.
 >
@@ -426,6 +430,8 @@ Mẹo để nói trơn tru:
 > Mục tiêu biết bài dựa trên mảng nào: bài này có 40 chủ đề, sự kiện xem chủ đề có trên DebugView.
 >
 > Mục tiêu nhận xét có bằng chứng: file PDF 8.86 KB trên Cloudinary, có bản ghi trên Firestore.
+>
+> Chất lượng: 83 trên 83 test backend pass, ca E2E TC-03 đạt khi chạy bằng ARTEMIS trên emulator, mỗi dịch vụ Firebase có ảnh Console, 10 finding review đã xử lý.
 >
 > `[chỉ ô Chưa đạt]` Em xin nói thẳng: mục tiêu 4 trên 5 người tự làm xong trong 2 phút chưa được đo, vì nhóm chưa thử nghiệm với người dùng thật.
 >
@@ -482,7 +488,7 @@ Mẹo để nói trơn tru:
 **Điền vào slide trước khi nộp:**
 
 - [ ] Slide 1: họ tên, MSSV từng bạn và tên giảng viên hướng dẫn.
-- [ ] Slide 20: kết quả `flutter test` (chạy trên máy có Flutter SDK) và pass rate ARTEMIS sau khi chạy 3 lần mỗi ca. Nếu chưa chạy được, sửa ô đó thành trạng thái thật thay vì để trống.
+- [ ] Slide 20: kết quả `flutter test` (chạy trên máy có Flutter SDK). Hàng ARTEMIS đã điền theo lần chạy ngày 10/11/2026 (TC-03, 2 lần, 1/2 pass). Nếu chạy thêm ca nào, cập nhật hàng đó theo bảng của `summarize.py`.
 - [ ] Slide 23: link video demo.
 
 **Thiết bị và dữ liệu:**
@@ -507,7 +513,8 @@ Mẹo để nói trơn tru:
 | Thầy hỏi | Trả lời |
 |---|---|
 | Đề Assignment yêu cầu web admin, tính năng Gemini, cross-role flow và test Security Rules. Đâu? | [Trả lời theo tình trạng thật lúc trình bày.] Bộ slide này trình bày phần app Android và backend đã hoàn thành. Nếu các phần đó chưa xong, nói rõ phần nào chưa có và kế hoạch, không trình bày như đã làm. |
-| Sao chưa có pass rate ARTEMIS? | [Nếu chưa chạy:] Suite đã viết đủ 19 ca nhưng chưa chạy, vì cần máy thật, backend, tài khoản test và API key cùng lúc. |
+| ARTEMIS mới chạy một ca? | Đúng. Nhóm đã chạy TC-03 hai lần trên emulator: agent đúng cả hai lần, test đạt ở lần 2 sau khi sửa bộ test đọc output. 18 ca còn lại chưa chạy, và TC-03 chưa đủ 3 lần như đề yêu cầu. Trace và ảnh ARTEMIS chụp nằm trong `evidence/e2e/`. |
+| Sao lần 1 fail? | Lỗi ở bộ test, không ở app. Profile Flash kết thúc completed nhưng để trống `output`; agent ghi JSON ở bước `report_task_status` cuối. Nhóm thêm `final_report()` trong `realtron.py` để đọc JSON từ bước đó. |
 | Persona lấy từ đâu? | Proto-persona: viết từ vấn đề có nguồn (Phantom References) và giả định của nhóm. Nhóm chưa phỏng vấn người dùng thật; đây là giới hạn ở slide 22. |
 | BR-xx có trong tài liệu không? | Các rule có thật trong code và rules (`main.py`, `weak_topic_rule.dart`, `firestore.rules`, `uploads.py`); mã BR-01 đến BR-06 là cách nhóm đánh số để trình bày và truy vết. |
 | Sao không vẽ C4 mức 2? | Thầy yêu cầu vẽ mức 1 (System Context). Cấu trúc bên trong app nằm ở slide Class Design và phụ lục A3. |

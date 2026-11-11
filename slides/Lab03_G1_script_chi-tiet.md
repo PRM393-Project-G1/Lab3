@@ -1,6 +1,6 @@
 # Kịch bản thuyết trình Lab 3 – Realtron
 
-Đi kèm bộ slide `Lab03_G1_slides.pdf` (32 slide). Nói hết khoảng 23 phút, chưa tính demo trên máy.
+Đi kèm bộ slide `Lab03_G1_slides.pdf` (33 slide). Nói hết khoảng 24 phút, chưa tính demo trên máy.
 
 Mỗi slide gồm 3 phần:
 
@@ -516,7 +516,7 @@ Thầy chấm nặng phần công nghệ và giải thích. Từ slide 6, mỗi 
 
 ## Slide 27 · ARTEMIS: What–Why (30 giây)
 
-**Ý chính:** Agent AI điều khiển máy thật, đi qua cả màn native mà unit/widget test với service giả không chạm tới.
+**Ý chính:** Agent AI điều khiển máy Android (thật hoặc emulator), đi qua cả màn native mà unit/widget test với service giả không chạm tới.
 
 **Lời nói:**
 
@@ -551,21 +551,46 @@ Thầy chấm nặng phần công nghệ và giải thích. Từ slide 6, mỗi 
 
 ## Slide 29 · ARTEMIS: Where–When (40 giây)
 
-**Ý chính:** Code test nằm trong `e2e_test/`; chạy trước khi nộp; kết quả chưa có.
+**Ý chính:** Code test nằm trong `e2e_test/`; chạy trước khi nộp; mỗi lần chạy để lại một dòng kết quả và một trace.
 
 **Lời nói:**
 
 > `[chỉ bảng]` `conftest.py` có fixture `cold_start`, `analytics_debug_mode`, `airplane_mode`, `send_push`. `realtron.py` có `Agent.check()` và các chỉ dẫn chung `signed_in()`, `open_paper()`. Tám file `test_*.py` chia theo flow. `summarize.py` in bảng pass rate từ `evidence/e2e/results.jsonl`; `exploratory.py` chạy phiên khám phá.
 >
-> `[chỉ ô trên]` Chạy `uv run pytest --count=3` trước khi nộp, trên điện thoại thật với Firebase và backend thật.
+> `[chỉ ô trên]` Chạy `uv run pytest --count=3` trước khi nộp. Lần đầu tối 10/11/2026: TC-03 trên emulator Android, Firebase thật, backend chạy trên máy host (app gọi `http://10.0.2.2:8001`).
 >
-> `[chỉ ô vàng]` Trạng thái thật: suite đã viết đủ 19 ca nhưng chưa chạy trên thiết bị, nên chưa có pass rate và chưa có phiên khám phá.
+> `[chỉ ô dưới]` Mỗi lần chạy, hook trong `conftest.py` ghi một dòng vào `results.jsonl`: ca, kết quả, số giây, trace ID, output của agent. Trace của ARTEMIS (`evidence/e2e/traces/`) có từng bước, ảnh trước và sau mỗi bước, số token.
 
-> **Nếu chạy xong trước buổi thuyết trình**, cập nhật slide 29 và thay đoạn cuối bằng: "Kết quả: [X]/19 ca đạt 3/3. Ca [TC-…] chưa đạt vì [nguyên nhân], đã ghi vào `docs/test-plan.md`. Phiên khám phá bằng profile Pro tìm được [số] vấn đề."
+**Nếu thầy hỏi:**
+
+- *"Sao chạy trên emulator?"* Suite chạy được trên cả máy thật và emulator, chỉ cần ADB thấy máy. Backend chạy trên chính laptop đó, nên app trong emulator gọi qua `10.0.2.2`.
 
 ---
 
-## Slide 30 · AI code review: What–Why và How (50 giây)
+## Slide 30 · ARTEMIS: kết quả TC-03 (45 giây)
+
+**Ý chính:** Agent đúng cả 2 lần; test đạt ở lần 2. Lần 1 fail vì bộ test không đọc được output của profile Flash, không vì app.
+
+**Lời nói:**
+
+> `[chỉ hai ảnh]` Ảnh do ARTEMIS chụp ở lần 2 (trace `393c93e8`): bước 3 chạm chip "Try 1706.03762", bước 4 bấm Analyze, bước 5 đợi 5 giây cho Paper Overview tải xong, bước 6 báo kết quả.
+>
+> `[chỉ ô code]` JSON agent báo: `screen_title` Paper Overview, `paper_title` Attention Is All You Need, `references_count` 40, `topics_summary` "40 topics · 0 weak". Lần 1 (trace `fa372721`) agent báo đúng y như vậy.
+>
+> `[chỉ bảng + ô cam]` Lần 1: 5 bước, 150 giây, fail với "The agent reported no JSON object: None". Profile Flash kết thúc `completed` nhưng để trống `output`; câu trả lời nằm trong `explanation` của bước `report_task_status` cuối. Nhóm thêm `final_report()` vào `realtron.py`: khi `output` rỗng mà task thành công, đọc `/api/sessions/{id}/steps` và lấy `explanation` đó.
+>
+> Lần 2: 6 bước, 112 giây, pass cả 5 assert, kể cả `logged("search")`. `summarize.py`: TC-03 · 2 lần · 1 pass · 1 fail · 1/2. 18 ca còn lại chưa chạy.
+
+**Nếu thầy hỏi:**
+
+- *"Chưa đủ 3 lần?"* Đúng, TC-03 mới 2 lần; đề yêu cầu ≥ 10 ca × 3 lần. Ca khác chạy bằng `uv run pytest --count=3`, kết quả nối vào cùng `results.jsonl`.
+- *"Tốn bao nhiêu?"* Lần 1: 9 lần gọi model, khoảng 74 nghìn token; lần 2: 11 lần gọi, khoảng 88 nghìn token (số trong trace).
+
+> **Nếu chạy thêm ca trước buổi thuyết trình**, cập nhật slide 30 theo bảng của `summarize.py` và thay đoạn cuối bằng: "Kết quả: [X]/19 ca đạt 3/3. Ca [TC-…] chưa đạt vì [nguyên nhân], đã ghi vào `docs/test-plan.md`."
+
+---
+
+## Slide 31 · AI code review: What–Why và How (50 giây)
 
 **Ý chính:** AI tìm; nhóm quyết định Accepted, Modified hay Rejected với lý do dựa trên đề hoặc tác động đo được.
 
@@ -584,7 +609,7 @@ Thầy chấm nặng phần công nghệ và giải thích. Từ slide 6, mỗi 
 
 ---
 
-## Slide 31 · AI code review: Where–When (40 giây)
+## Slide 32 · AI code review: Where–When (40 giây)
 
 **Ý chính:** Mỗi finding gắn với file:dòng, quyết định có lý do, và commit.
 
@@ -602,7 +627,7 @@ Thầy chấm nặng phần công nghệ và giải thích. Từ slide 6, mỗi 
 
 ---
 
-## Slide 32 · Khó khăn, bài học, công cụ AI (1 phút)
+## Slide 33 · Khó khăn, bài học, công cụ AI (1 phút)
 
 **Ý chính:** Mỗi khó khăn đều có cách xử lý cụ thể. AI giúp làm nhanh, nhưng quyết định là của nhóm.
 
@@ -646,14 +671,16 @@ Theo mục 11 của đề, thầy có thể kiểm từng bạn khoảng 5 phút
 
 ### 1. Chạy một test ARTEMIS
 
-Cần có sẵn: máy chủ ARTEMIS đang chạy, có API key trong `.env` của ARTEMIS; điện thoại cắm USB, đã bật USB Debugging; backend đang chạy.
+Cần có sẵn: máy chủ ARTEMIS đang chạy, có API key trong `.env` của ARTEMIS; điện thoại cắm USB đã bật USB Debugging, hoặc emulator đang mở; backend đang chạy.
 
 ```powershell
 cd e2e_test
 $env:E2E_TEST_ACCOUNT = "<email tài khoản test>"
-$env:E2E_SERVER_URL   = "http://<IP Tailscale>:8000"
+$env:E2E_SERVER_URL   = "http://<IP Tailscale>:8000"   # emulator + backend cùng laptop: http://10.0.2.2:<cổng backend>
 uv run pytest test_analyze.py::test_tc03_finished_paper_opens_right_away
 ```
+
+Lần chạy ngày 10/11 mất khoảng 2 phút cho ca này (112–150 giây).
 
 Trong lúc test chạy, nói:
 
@@ -688,7 +715,7 @@ Mở `lib/viewmodels/analyze_view_model.dart`, nói khoảng 1 phút:
 
 ### 4. Giải thích một quyết định code review
 
-Dùng CR-01 (Accepted) hoặc CR-05 (Modified), như phần lời nói của slide 31. Mở `docs/code-review.md` và commit 6c95c84 để chỉ dòng code trước và sau khi sửa.
+Dùng CR-01 (Accepted) hoặc CR-05 (Modified), như phần lời nói của slide 32. Mở `docs/code-review.md` và commit 6c95c84 để chỉ dòng code trước và sau khi sửa.
 
 ---
 
@@ -697,7 +724,7 @@ Dùng CR-01 (Accepted) hoặc CR-05 (Modified), như phần lời nói của sli
 | Thầy hỏi | Trả lời |
 |---|---|
 | Ảnh trên slide chụp ở đâu? | Một số ảnh FCM, Remote Config và lỗi kết nối chụp trên emulator BlueStacks. Hôm nay em demo trên điện thoại thật. |
-| Sao chưa có pass rate ARTEMIS? | Suite đã viết đủ 19 ca nhưng chưa chạy, vì cần máy thật, backend, tài khoản test và API key cùng lúc. Nhóm sẽ chạy và cập nhật bảng. |
+| ARTEMIS mới chạy một ca? | Đúng. TC-03 đã chạy hai lần trên emulator: agent đúng cả hai lần, test đạt ở lần 2 sau khi thêm `final_report()`. 18 ca còn lại chưa chạy, TC-03 chưa đủ 3 lần. Nhóm sẽ chạy tiếp và cập nhật bảng. |
 | Fix code review sao gộp một commit? | CR-01 có commit riêng. CR-02 đến CR-10 sửa chung trong be3ab33. Nhóm nhận đây là thiếu sót. |
 | Figma có khớp app chưa? | Phần Export đã cập nhật. Nút Details ở màn Reference và các câu báo lỗi mới thì chưa. |
 | Push không tới khi app đã tắt? | Máy Xiaomi/Redmi chặn app chạy nền nếu chưa bật Autostart, và Android chặn push cho app bị Force stop. |

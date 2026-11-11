@@ -1,6 +1,6 @@
 # Kịch bản thuyết trình Lab 3 – Realtron
 
-Đi kèm bộ slide `Lab03_G1_slides.pdf` (32 slide). Nói khoảng 23 phút, chưa tính demo.
+Đi kèm bộ slide `Lab03_G1_slides.pdf` (33 slide). Nói khoảng 24 phút, chưa tính demo.
 
 Từ slide 6, mỗi công nghệ đi theo ba phần: **What–Why** (là gì, vì sao Realtron cần) → **How** (chạy thế nào) → **Where–When** (nằm ở đâu trong code, chạy lúc nào, bằng chứng). Ba nhãn ở góc trên bên phải slide cho biết đang ở phần nào.
 
@@ -647,11 +647,11 @@ Mẹo để nói trơn tru:
 
 ## Slide 27 · ARTEMIS: What–Why (30 giây)
 
-**Câu chốt:** ARTEMIS là agent AI dùng app trên điện thoại thật, đi qua được cả các màn ngoài Flutter.
+**Câu chốt:** ARTEMIS là agent AI dùng app trên máy Android như người test, đi qua được cả các màn ngoài Flutter.
 
 **Nói:**
 
-> ARTEMIS là agent AI mã nguồn mở của Google. Nó nhận chỉ dẫn bằng ngôn ngữ tự nhiên, rồi điều khiển điện thoại Android thật qua ADB: chạm, gõ, vuốt, đọc màn hình.
+> ARTEMIS là agent AI mã nguồn mở của Google. Nó nhận chỉ dẫn bằng ngôn ngữ tự nhiên, rồi điều khiển máy Android qua ADB, điện thoại thật hay emulator đều được: chạm, gõ, vuốt, đọc màn hình.
 >
 > Vì sao cần? Nhóm đã có 141 test Flutter và 72 test backend, nhưng chúng dùng service giả. Chúng không chạm tới Firebase, backend, hay các màn ngoài Flutter như chọn tài khoản Google, chia sẻ link từ Chrome, mở push từ khay. Đề cũng yêu cầu ít nhất 10 ca, mỗi ca chạy 3 lần.
 >
@@ -693,23 +693,50 @@ Mẹo để nói trơn tru:
 
 ## Slide 29 · ARTEMIS: Where–When (40 giây)
 
-**Câu chốt:** Suite có đủ 19 ca trong `e2e_test/`, nhưng chưa chạy trên thiết bị, nên chưa có tỉ lệ pass.
+**Câu chốt:** Suite có 19 ca trong `e2e_test/`. Mỗi lần chạy để lại một dòng kết quả và một trace của ARTEMIS.
 
 **Nói:**
 
 > `[chỉ bảng]` Code test nằm trong thư mục `e2e_test`. `conftest.py` chuẩn bị máy trước mỗi test, ví dụ đóng app để test nào cũng bắt đầu từ đầu. `realtron.py` chứa các chỉ dẫn dùng chung. Tám file test chia theo flow. `summarize.py` in bảng tỉ lệ pass.
 >
-> `[chỉ ô trên]` Khi nào chạy: trước khi nộp, mỗi ca 3 lần. Test chạy trên điện thoại thật, với Firebase và backend thật.
+> `[chỉ ô trên]` Khi nào chạy: trước khi nộp, mỗi ca 3 lần. Lần chạy đầu là tối 10/11: TC-03 trên emulator Android, với Firebase thật và backend chạy trên máy host.
 >
-> `[chỉ ô vàng]` Em xin nói thật về kết quả. Suite đã viết đủ 19 ca nhưng chưa chạy trên thiết bị, nên chưa có tỉ lệ pass và chưa có phiên khám phá.
+> `[chỉ ô dưới]` Mỗi lần chạy ghi một dòng vào `results.jsonl`: ca nào, đạt hay không, bao nhiêu giây, trace ID. Trace của ARTEMIS lưu từng bước và ảnh màn hình trước, sau mỗi bước.
 >
-> *(Chuyển)* Tiếp theo là phần rà soát mã bằng AI.
+> *(Chuyển)* Slide sau là kết quả của lần chạy đó, với chính các ảnh ARTEMIS chụp.
 
-> **Nếu chạy xong trước buổi thuyết trình**, cập nhật slide 29 rồi thay đoạn cuối bằng: "Kết quả: [X]/19 ca đạt 3/3. Ca [TC-…] chưa đạt vì [nguyên nhân], nhóm đã ghi vào `docs/test-plan.md`. Phiên khám phá bằng profile Pro tìm được [số] vấn đề."
+**Thầy hỏi:**
+
+- *"Sao chạy trên emulator?"* Suite chạy được trên cả điện thoại thật và emulator, chỉ cần ADB thấy máy. Lần này backend chạy trên chính laptop đó, nên app trong emulator gọi backend qua `10.0.2.2`, địa chỉ emulator dùng để trỏ về máy host.
 
 ---
 
-## Slide 30 · AI code review: What–Why và How (50 giây)
+## Slide 30 · ARTEMIS: kết quả TC-03 (45 giây)
+
+**Câu chốt:** Agent đúng cả hai lần. Test đạt ở lần 2; lần 1 fail vì bộ test, không vì app.
+
+**Nói:**
+
+> `[chỉ hai ảnh]` Đây là ảnh ARTEMIS tự chụp ở lần 2. Agent chạm "Try 1706.03762", bấm Analyze, đợi màn Paper Overview hiện ra.
+>
+> `[chỉ ô code]` Rồi nó báo lại bốn giá trị: tên màn Paper Overview, tên bài Attention Is All You Need, 40 reference, và dòng "40 topics · 0 weak". Cả hai lần agent đều báo đúng như vậy.
+>
+> `[chỉ bảng]` Lần 1 test vẫn fail. `[chỉ ô cam]` Lỗi nằm ở bộ test: profile Flash kết thúc với trạng thái completed nhưng để trống output, nên test không có JSON để kiểm. Agent thật ra đã ghi JSON vào bước báo cáo cuối. Nhóm thêm hàm `final_report()` để đọc JSON từ bước đó.
+>
+> Lần 2 chạy với bản sửa: 6 bước, 112 giây, cả 5 assert đều đạt, kể cả sự kiện `search` trong Logcat. Theo `summarize.py`, TC-03 đạt 1 trên 2 lần. 18 ca còn lại chưa chạy.
+>
+> *(Chuyển)* Tiếp theo là phần rà soát mã bằng AI.
+
+**Thầy hỏi:**
+
+- *"Mới một ca, chưa đủ 3 lần?"* Đúng. Đề yêu cầu ít nhất 10 ca, mỗi ca 3 lần; nhóm mới chạy TC-03 hai lần. Các ca còn lại chạy bằng cùng lệnh `uv run pytest --count=3`, kết quả sẽ vào cùng file.
+- *"Sao biết agent không bịa giá trị?"* Ảnh trong trace là ảnh chụp màn hình thật ở từng bước, khớp với JSON agent báo. Sự kiện `search` thì test tự đọc Logcat, không hỏi agent.
+
+> **Nếu chạy thêm ca trước buổi thuyết trình**, cập nhật slide 30 theo bảng của `summarize.py`, rồi thay đoạn cuối bằng: "Kết quả: [X]/19 ca đạt 3/3. Ca [TC-…] chưa đạt vì [nguyên nhân], nhóm đã ghi vào `docs/test-plan.md`."
+
+---
+
+## Slide 31 · AI code review: What–Why và How (50 giây)
 
 **Câu chốt:** AI tìm ra 10 vấn đề. Nhóm tự quyết định từng vấn đề và ghi lý do.
 
@@ -732,7 +759,7 @@ Mẹo để nói trơn tru:
 
 ---
 
-## Slide 31 · AI code review: Where–When (40 giây)
+## Slide 32 · AI code review: Where–When (40 giây)
 
 **Câu chốt:** Mỗi finding gắn với một dòng code, một quyết định có lý do, và một commit.
 
@@ -754,7 +781,7 @@ Mẹo để nói trơn tru:
 
 ---
 
-## Slide 32 · Khó khăn, bài học, công cụ AI (1 phút)
+## Slide 33 · Khó khăn, bài học, công cụ AI (1 phút)
 
 **Câu chốt:** Khó khăn nào cũng có cách xử lý cụ thể. AI giúp làm nhanh, nhưng quyết định là của nhóm.
 
@@ -800,14 +827,16 @@ Thầy có thể kiểm từng bạn khoảng 5 phút với bốn việc: chạy
 
 ### 1. Chạy một test ARTEMIS
 
-Cần có sẵn: máy chủ ARTEMIS đang chạy, có API key trong `.env` của ARTEMIS; điện thoại cắm USB và đã bật USB Debugging; backend đang chạy.
+Cần có sẵn: máy chủ ARTEMIS đang chạy, có API key trong `.env` của ARTEMIS; điện thoại cắm USB đã bật USB Debugging, hoặc emulator đang mở; backend đang chạy.
 
 ```powershell
 cd e2e_test
 $env:E2E_TEST_ACCOUNT = "<email tài khoản test>"
-$env:E2E_SERVER_URL   = "http://<IP Tailscale>:8000"
+$env:E2E_SERVER_URL   = "http://<IP Tailscale>:8000"   # emulator + backend cùng laptop: http://10.0.2.2:<cổng backend>
 uv run pytest test_analyze.py::test_tc03_finished_paper_opens_right_away
 ```
+
+Lần chạy ngày 10/11 mất khoảng 2 phút cho ca này.
 
 Trong lúc test chạy, nói:
 
@@ -847,7 +876,7 @@ Mở `lib/viewmodels/analyze_view_model.dart`, nói khoảng 1 phút:
 
 ### 4. Giải thích một quyết định code review
 
-Dùng CR-01 (Accepted) hoặc CR-05 (Modified), nói như ở slide 31. Mở `docs/code-review.md` và commit 6c95c84 để chỉ dòng code trước và sau khi sửa.
+Dùng CR-01 (Accepted) hoặc CR-05 (Modified), nói như ở slide 32. Mở `docs/code-review.md` và commit 6c95c84 để chỉ dòng code trước và sau khi sửa.
 
 ---
 
@@ -856,7 +885,7 @@ Dùng CR-01 (Accepted) hoặc CR-05 (Modified), nói như ở slide 31. Mở `do
 | Thầy hỏi | Trả lời |
 |---|---|
 | Ảnh trên slide chụp ở đâu? | Một số ảnh FCM, Remote Config và lỗi kết nối chụp trên emulator BlueStacks. Hôm nay em demo trên điện thoại thật. |
-| Sao chưa có tỉ lệ pass ARTEMIS? | Suite đã viết đủ 19 ca nhưng chưa chạy, vì cần máy thật, backend, tài khoản test và API key cùng lúc. Nhóm sẽ chạy và cập nhật bảng. |
+| ARTEMIS mới chạy một ca? | Đúng. Nhóm đã chạy TC-03 hai lần trên emulator: agent đúng cả hai lần, test đạt ở lần 2 sau khi sửa bộ test đọc output. 18 ca còn lại chưa chạy, và TC-03 chưa đủ 3 lần. Nhóm sẽ chạy tiếp và cập nhật bảng. |
 | Fix code review sao gộp một commit? | CR-01 có commit riêng. CR-02 đến CR-10 sửa chung trong be3ab33. Nhóm nhận đây là thiếu sót. |
 | Figma đã khớp app chưa? | Phần Export đã cập nhật. Nút Details ở màn Reference và các câu báo lỗi mới thì chưa. |
 | Push không tới khi app đã tắt? | Máy Xiaomi/Redmi chặn app chạy nền nếu chưa bật Autostart. Android cũng chặn push cho app bị Force stop. |
