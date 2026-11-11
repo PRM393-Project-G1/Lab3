@@ -16,6 +16,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // An admin action request: the backend checks the role again, acts and records
+    // the outcome. Nobody edits or deletes a request, so the queue is the audit log.
+    function validAction(data) {
+      return data.keys().hasOnly(['type', 'target', 'requestedBy', 'createdAt', 'status', 'reason'])
+        && data.keys().hasAll(['type', 'target', 'requestedBy', 'createdAt', 'status'])
+        && data.requestedBy == request.auth.uid
+        && data.status == 'queued'
+        && data.createdAt == request.time
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 200))
+        && data.type in ['cancelAnalysis', 'retryAnalysis']
+        && data.target is string && data.target.matches('^[0-9]{4}[.][0-9]{4,5}$');
+    }
+
+    match /adminActions/{actionId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && actionId.matches('^[A-Za-z0-9_-]{20,80}$')
+        && validAction(request.resource.data);
+      allow update, delete: if false;
+    }
+
     // Liveness written by the backend processes with the Admin SDK.
     match /workerStatus/{name} {
       allow read: if isAdmin();

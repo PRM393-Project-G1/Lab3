@@ -10,6 +10,7 @@ import firebase_admin
 from firebase_admin import auth, exceptions, firestore, messaging
 
 from .contract import DONE, DONE_TYPE, FAILED, QUEUED, RUNNING
+from .admin_actions import ACTIONS
 from .heartbeat import WORKER_STATUS
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,12 @@ def verify_token(token: str) -> str:
 class FirebaseStore:
     """Uses the service account named by GOOGLE_APPLICATION_CREDENTIALS."""
 
-    def __init__(self) -> None:
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app()
-        self._db = firestore.client()
+    def __init__(self, db: Any = None) -> None:
+        if db is None:
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
+            db = firestore.client()
+        self._db = db
 
     def _analysis(self, analysis_id: str):
         return self._db.collection("analyses").document(analysis_id)
@@ -51,15 +54,59 @@ class FirebaseStore:
                 "status": QUEUED,
                 "progress": {"stage": "references", "percent": 0, "processedRefs": 0},
                 "error": None,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
             },
             merge=True,
         )
 
     def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
-        self._analysis(analysis_id).set(fields, merge=True)
+        # `updatedAt` lets the admin web tell a slow job from a stalled one.
+        self._analysis(analysis_id).set({**fields, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
 
     def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
         self._db.collection(WORKER_STATUS).document(name).set({**fields, "lastSeen": firestore.SERVER_TIMESTAMP}, merge=True)
+
+    def is_admin(self, uid: str) -> bool:
+        return (self._db.collection("users").document(uid).get().to_dict() or {}).get("role") == "admin"
+
+    def _action(self, action_id: str):
+        return self._db.collection(ACTIONS).document(action_id)
+
+    def queued_action_ids(self) -> list[str]:
+        query = self._db.collection(ACTIONS).where(filter=firestore.FieldFilter("status", "==", "queued")).limit(20)
+        return [snapshot.id for snapshot in query.stream()]
+
+    def claim_action(self, action_id: str, owner: str) -> dict[str, Any] | None:
+        reference = self._action(action_id)
+
+        @firestore.transactional
+        def claim(transaction):
+            data = reference.get(transaction=transaction).to_dict() or {}
+            if data.get("status") != "queued":
+                return None
+            transaction.update(reference, {"status": "processing", "workerId": owner, "startedAt": firestore.SERVER_TIMESTAMP})
+            return data
+
+        return claim(self._db.transaction())
+
+    def finish_action(self, action_id: str, owner: str, fields: dict[str, Any]) -> None:
+        reference = self._action(action_id)
+
+        @firestore.transactional
+        def finish(transaction):
+            data = reference.get(transaction=transaction).to_dict() or {}
+            if data.get("status") == "processing" and data.get("workerId") == owner:
+                transaction.update(reference, {**fields, "finishedAt": firestore.SERVER_TIMESTAMP})
+
+        finish(self._db.transaction())
+
+    def fail_unfinished_actions(self, message: str) -> int:
+        query = self._db.collection(ACTIONS).where(filter=firestore.FieldFilter("status", "==", "processing"))
+        count = 0
+        for snapshot in query.stream():
+            snapshot.reference.update({"status": "failed", "error": message, "finishedAt": firestore.SERVER_TIMESTAMP})
+            count += 1
+        return count
 
     def completed_analyses(self) -> Iterable[tuple[str, dict[str, Any]]]:
         query = self._db.collection("analyses").where(filter=firestore.FieldFilter("status", "==", DONE))

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, FileText, RefreshCw, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { filterAnalyses, isRunning, summarize, type AnalysisFeed, type AnalysisFilter, type CheckMode } from '../domain/analysis';
+import { filterAnalyses, formatMinutes, isRunning, stalledFor, summarize, type Analysis, type AnalysisFeed, type AnalysisFilter, type CheckMode } from '../domain/analysis';
 import { analysesCsv, downloadCsv } from '../domain/csv';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
@@ -13,7 +13,7 @@ import { WorkerNotice } from '../components/SystemIndicator';
 const pageSize = 8;
 const filters: { value: AnalysisFilter; label: string }[] = [
   { value: 'all', label: 'All analyses' }, { value: 'done', label: 'Completed' },
-  { value: 'running', label: 'Running' }, { value: 'failed', label: 'Failed' },
+  { value: 'running', label: 'Running' }, { value: 'stalled', label: 'Stalled' }, { value: 'failed', label: 'Failed' },
   { value: 'cancelled', label: 'Cancelled' }, { value: 'unknown', label: 'Unknown' },
 ];
 type FeedState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; feed: AnalysisFeed };
@@ -47,7 +47,12 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
     analyses.forEach((a) => { if (a.requestedBy) tally.set(a.requestedBy, (tally.get(a.requestedBy) ?? 0) + 1); });
     return [...tally].map(([uid, count]) => ({ uid, count, name: nameOf(uid) })).sort((a, b) => a.name.localeCompare(b.name));
   }, [analyses, nameOf]);
-  const visible = useMemo(() => filterAnalyses(analyses, query, filter, { requester, mode }), [analyses, query, filter, requester, mode]);
+  // Re-evaluated with each snapshot and every minute, since a stall is the absence of updates.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
+  const stalled = useMemo(() => analyses.filter((a) => stalledFor(a, now) !== null).length, [analyses, now]);
+  const visible = useMemo(() => filterAnalyses(analyses, query, filter, { requester, mode }, now), [analyses, query, filter, requester, mode, now]);
+  const stallBadge = (analysis: Analysis) => { const minutes = stalledFor(analysis, now); return minutes === null ? null : <span className="stall-badge">No progress · {formatMinutes(minutes)}</span>; };
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const page = Math.min(requestedPage, pages);
   const rows = visible.slice((page - 1) * pageSize, page * pageSize);
@@ -76,13 +81,14 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
         <strong>{value.toLocaleString('en')}</strong><span className="metric-note">{note}</span>
       </section>)}</div>
       {!demo && state.feed.fromCache && <div className="notice">Showing cached data. Live updates will resume when the connection is restored.</div>}
+      {stalled > 0 && filter !== 'stalled' && <div className="notice" role="status">{stalled} running {stalled === 1 ? 'analysis has' : 'analyses have'} shown no progress for a long time. <button className="plain-button" onClick={() => { setFilter('stalled'); setPage(1); }}>Show stalled</button> and open one to stop or run it again.</div>}
       {summary.running > 0 && <WorkerNotice system={system} name="backend">{(when) => `${when}. ${summary.running} queued or processing ${summary.running === 1 ? 'analysis' : 'analyses'} will not progress until it runs again.`}</WorkerNotice>}
       <section className="analyses-panel" aria-label="Paper analyses">
         <div className="panel-heading"><div className="panel-title"><BookOpen size={19} /><h2>Paper analyses</h2><span className="count-pill">{summary.total}</span></div>
           <span className="panel-caption">Newest first</span></div>
         <div className="table-toolbar"><div className="filter-list" aria-label="Analysis status">
-          {filters.filter((item) => item.value !== 'unknown' || analyses.some((a) => a.status === 'unknown')).map((item) => {
-            const count = item.value === 'all' ? summary.total : analyses.filter((a) => item.value === 'running' ? isRunning(a) : a.status === item.value).length;
+          {filters.filter((item) => item.value === filter || (item.value !== 'unknown' || analyses.some((a) => a.status === 'unknown')) && (item.value !== 'stalled' || stalled > 0)).map((item) => {
+            const count = item.value === 'all' ? summary.total : item.value === 'stalled' ? stalled : analyses.filter((a) => item.value === 'running' ? isRunning(a) : a.status === item.value).length;
             return <button key={item.value} className={`filter-button ${filter === item.value ? 'selected' : ''}`}
               aria-pressed={filter === item.value} onClick={() => { setFilter(item.value); setPage(1); }}>{item.label}{' '}<span>{count}</span></button>;
           })}</div>
@@ -99,7 +105,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
             aria-label={`Export CSV (${visible.length} ${visible.length === 1 ? 'analysis' : 'analyses'})`}><Download size={15} />Export CSV</button>
         </div>
         {rows.length ? compact ? <div className="mobile-analysis-list">{rows.map((analysis) => <article className="mobile-analysis-card" key={analysis.id}>
-          <div className="mobile-card-meta"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>
+          <div className="mobile-card-meta"><code>arXiv:{analysis.id}</code><StatusBadge status={analysis.status} /></div>{stallBadge(analysis)}
           <Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="paper-title">{analysis.title}</Link>
           <p className="mobile-card-author">{analysis.authors[0] ? `${analysis.authors[0]}${analysis.authors.length > 1 ? ' et al.' : ''}` : 'Authors unavailable'}</p>
           {analysis.status === 'processing' && <div className="row-progress"><progress max={100} value={analysis.progress} aria-label={`Analysis progress for ${analysis.id}`} /><span>{analysis.progress}%</span></div>}
@@ -114,7 +120,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
             <div className="paper-subtitle"><code>arXiv:{analysis.id}</code><span aria-hidden="true">·</span>
               <span>{analysis.authors[0] ? `${analysis.authors[0]}${analysis.authors.length > 1 ? ' et al.' : ''}` : 'Authors unavailable'}</span></div>
           </div></div></td>
-          <td><StatusBadge status={analysis.status} />{analysis.status === 'processing' && <div className="row-progress"><progress aria-label={`Analysis progress for ${analysis.id}`} max={100} value={analysis.progress} /><span>{analysis.progress}%</span></div>}</td>
+          <td><StatusBadge status={analysis.status} />{stallBadge(analysis)}{analysis.status === 'processing' && <div className="row-progress"><progress aria-label={`Analysis progress for ${analysis.id}`} max={100} value={analysis.progress} /><span>{analysis.progress}%</span></div>}</td>
           <td className="references-cell">{analysis.status === 'done' ? <><strong>{analysis.totalRefs}</strong><span>references</span></> : <span className="muted">—</span>}</td>
           <td className="date-cell">{formatDate(analysis.createdAt)}<span>{[analysis.createdAt?.getFullYear(), analysis.requestedBy && `by ${nameOf(analysis.requestedBy)}`].filter(Boolean).join(' · ')}</span></td>
           <td><Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="row-action" aria-label={`View ${analysis.title}`}><ArrowRight size={18} /></Link></td>

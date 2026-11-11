@@ -287,3 +287,15 @@ th { font-size: 10px; }
 .breadcrumb { min-width: 0; white-space: nowrap; }
 .breadcrumb strong { overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 480px) { .workspace-header { gap: 8px; }.breadcrumb { gap: 6px; }.workspace-badge { padding: 5px 6px; } }
+.stall-badge { display: block; width: fit-content; margin-top: 6px; padding: 2px 7px; border-radius: 4px; background: #fff4df; color: #8a5a1f; font-size: 10px; font-weight: 550; }
+.notice .plain-button { padding: 0; color: #6e4a12; text-decoration: underline; font-size: inherit; background: none; }
+.admin-actions h2 { font-size: 19px; margin-bottom: 12px; }
+.action-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+.action-confirm { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: #fafbfd; }
+.action-confirm > p { margin-bottom: 4px; color: var(--ink); }
+.action-confirm .dialog-actions { margin-top: 14px; }
+.action-status { margin: 14px 0 0; font-size: 12px; color: #5d6a80; }
+.action-status.action-failed { color: #a24f4b; }
+.action-status.action-completed { color: #3c7d58; }
+.stall-warning { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 7px; background: #fff8e9; color: #8a5a1f; font-size: 12px; }
+.stall-warning svg { flex-shrink: 0; margin-top: 3px; }

@@ -39,3 +39,28 @@ describe('CSV export', () => {
     expect(csv[2]).toBe('1409.0473,arXiv:1409.0473,,Failed,,,,,,,,,,,,,Topic extraction took too long.');
   });
 });
+
+describe('stalled jobs and action drafts', async () => {
+  const { stalledFor, formatMinutes } = await import('../src/domain/analysis');
+  const { normalizeAction, validateAction, availableActions } = await import('../src/domain/actions');
+  const now = new Date(2026, 10, 11, 12, 0);
+  const ago = (minutes: number) => new Date(now.getTime() - minutes * 60000);
+  it('uses the last backend write, with a longer allowance for queued work', () => {
+    expect(stalledFor(parseAnalysis('a', { status: 'processing', createdAt: ago(300), updatedAt: ago(10) }), now)).toBeNull();
+    expect(stalledFor(parseAnalysis('a', { status: 'processing', createdAt: ago(300), updatedAt: ago(45) }), now)).toBe(45);
+    expect(stalledFor(parseAnalysis('a', { status: 'queued', createdAt: ago(100) }), now)).toBeNull();
+    expect(stalledFor(parseAnalysis('a', { status: 'queued', createdAt: ago(130) }), now)).toBe(130);
+    expect(stalledFor(parseAnalysis('a', { status: 'done', createdAt: ago(900) }), now)).toBeNull();
+    expect(formatMinutes(45)).toBe('45 min');
+    expect(formatMinutes(185)).toBe('3 h 05 min');
+    expect(formatMinutes(6960)).toBe('4 days 20 h');
+  });
+  it('validates drafts like the rules and offers only actions that fit the status', () => {
+    expect(normalizeAction({ type: 'cancelAnalysis', target: '1706.03762', reason: '  ' })).toEqual({ type: 'cancelAnalysis', target: '1706.03762' });
+    expect(validateAction({ type: 'cancelAnalysis', target: '../users' })).toMatch(/not valid/);
+    expect(validateAction({ type: 'retryAnalysis', target: '1706.03762', reason: 'x'.repeat(201) })).toMatch(/200/);
+    expect(availableActions(parseAnalysis('a', { status: 'queued' }))).toEqual(['cancelAnalysis']);
+    expect(availableActions(parseAnalysis('a', { status: 'cancelled' }))).toEqual(['retryAnalysis']);
+    expect(availableActions(parseAnalysis('a', { status: 'done' }))).toEqual([]);
+  });
+});

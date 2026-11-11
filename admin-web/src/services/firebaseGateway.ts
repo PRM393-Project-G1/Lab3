@@ -7,6 +7,7 @@ import type { AdminGateway } from './gateway';
 import { invalidWebAppId, missingConfig, requiredConfig } from './firebaseConfig';
 import { normalizeDraft, parseAnnouncement, validateDraft } from '../domain/notifications';
 import { parseWorker } from '../domain/workers';
+import { normalizeAction, parseAction, validateAction } from '../domain/actions';
 
 let gateway: AdminGateway | undefined;
 
@@ -95,6 +96,26 @@ export function getFirebaseGateway(): AdminGateway {
     }, error),
     getWeakRule: weakRule,
     watchWorkers: (next, error) => onSnapshot(collection(db, 'workerStatus'), (snapshot) => next(snapshot.docs.map((item) => parseWorker(item.id, item.data()))), error),
+    watchActions: (next, error) => onSnapshot(query(collection(db, 'adminActions'), orderBy('createdAt', 'desc'), limit(50)),
+      (snapshot) => next(snapshot.docs.map((item) => parseAction(item.id, item.data()))), error),
+    async requestAction(id, raw) {
+      const draft = normalizeAction(raw);
+      const problem = validateAction(draft);
+      if (problem) throw new Error(problem);
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw Object.assign(new Error('Sign in first.'), { code: 'auth/user-signed-out' });
+      // Same pattern as announcements: create once, a retry of this ID only reads.
+      await runTransaction(db, async (transaction) => {
+        const reference = doc(db, 'adminActions', id);
+        const existing = await transaction.get(reference);
+        if (existing.exists()) {
+          const data = existing.data();
+          if (data.requestedBy !== uid || data.type !== draft.type || data.target !== draft.target) throw new Error('This request ID belongs to a different action.');
+          return;
+        }
+        transaction.set(reference, { ...draft, requestedBy: uid, status: 'queued', createdAt: serverTimestamp() });
+      }, { maxAttempts: 3 });
+    },
     async getResults(id) {
       const [paper, references, topics, rule] = await Promise.all([
         getDoc(doc(db, 'analyses', id)),

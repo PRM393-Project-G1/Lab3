@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import type { AdminGateway, AdminUser } from '../src/services/gateway';
 import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } from '../src/domain/notifications';
 import { normalizeDraft, parseAnnouncement } from '../src/domain/notifications';
 import { parseWorker, type WorkerStatus } from '../src/domain/workers';
+import { parseAction, type AdminActionRecord } from '../src/domain/actions';
 
 class FakeGateway implements AdminGateway {
   recipients: NotificationRecipient[] = [
@@ -48,6 +49,14 @@ class FakeGateway implements AdminGateway {
     this.feedNext = next; this.feedError = error; queueMicrotask(() => next(this.feed)); return this.stopFeed;
   });
   workers: WorkerStatus[] = [parseWorker('backend', { state: 'running', lastSeen: new Date() }), parseWorker('notifications', { state: 'running', lastSeen: new Date() })];
+  actions: AdminActionRecord[] = [];
+  actionNext?: (actions: AdminActionRecord[]) => void;
+  watchActions = vi.fn<AdminGateway['watchActions']>((next) => { this.actionNext = next; queueMicrotask(() => next(this.actions)); return () => {}; });
+  requestAction = vi.fn<AdminGateway['requestAction']>(async (id, draft) => {
+    this.actions = [parseAction(id, { ...draft, requestedBy: 'admin', status: 'queued', createdAt: new Date() }), ...this.actions];
+    this.actionNext?.(this.actions);
+  });
+  settle(fields: Partial<AdminActionRecord>) { this.actions = [{ ...this.actions[0], ...fields }, ...this.actions.slice(1)]; this.actionNext?.(this.actions); }
   watchWorkers = vi.fn<AdminGateway['watchWorkers']>((next) => { queueMicrotask(() => next(this.workers)); return () => {}; });
   getWeakRule = vi.fn<AdminGateway['getWeakRule']>(async () => ({ threshold: 0.5, minRefs: 3 }));
   getResults = vi.fn<AdminGateway['getResults']>(async (id) => ({
@@ -57,6 +66,10 @@ class FakeGateway implements AdminGateway {
 
 function open(gateway: FakeGateway, path = '/') {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/*" element={<AccessGate gateway={gateway} />} /></Routes></MemoryRouter>);
+}
+function cleanupAndOpen(gateway: FakeGateway, path: string) {
+  cleanup();
+  return open(gateway, path);
 }
 
 describe('admin access boundary', () => {
@@ -294,5 +307,46 @@ describe('background service status', () => {
     gateway.workers = [parseWorker('notifications', { state: 'stopped', lastSeen: minutesAgo(1) })];
     open(gateway, '/notifications');
     expect(await screen.findByText(/Notification worker is stopped .* New messages stay queued/)).toBeInTheDocument();
+  });
+});
+
+describe('admin actions on analyses', () => {
+  it('queues a retry for a failed paper after confirmation and reloads when it settles', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/analyses/1409.0473');
+    await userEvent.click(await screen.findByRole('button', { name: 'Run again' }));
+    expect(gateway.requestAction).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for the log/ }), 'Saffron is back');
+    await userEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(gateway.requestAction).toHaveBeenCalledWith(expect.any(String), { type: 'retryAnalysis', target: '1409.0473', reason: 'Saffron is back' });
+    expect(await screen.findByText(/Waiting for backend/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run again' })).toBeDisabled();
+    const loads = gateway.getResults.mock.calls.length;
+    act(() => gateway.settle({ status: 'completed', result: 'Analysis queued again with its original settings.' }));
+    await waitFor(() => expect(gateway.getResults.mock.calls.length).toBe(loads + 1));
+    expect(await screen.findByText(/Completed .* Analysis queued again/)).toBeInTheDocument();
+  });
+
+  it('offers stop for running papers, nothing for completed ones, and shows refusals', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/analyses/1512.03385');
+    await userEvent.click(await screen.findByRole('button', { name: 'Stop analysis' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop analysis' }));
+    expect(gateway.requestAction.mock.calls[0][1]).toEqual({ type: 'cancelAnalysis', target: '1512.03385', reason: '' });
+    act(() => gateway.settle({ status: 'failed', error: 'Only queued or processing analyses can be stopped; this one is done.' }));
+    expect(await screen.findByText(/Failed .* this one is done/)).toBeInTheDocument();
+    cleanupAndOpen(gateway, '/analyses/1706.03762');
+    await screen.findByRole('heading', { name: 'Attention Is All You Need' });
+    expect(screen.queryByRole('heading', { name: 'Admin actions' })).not.toBeInTheDocument();
+  });
+
+  it('flags stalled jobs on the overview and filters to them', async () => {
+    const gateway = new FakeGateway();
+    gateway.feed.analyses.push(parseAnalysis('2101.00001', { paperTitle: 'Silent paper', status: 'processing',
+      createdAt: new Date(Date.now() - 3 * 3600000), updatedAt: new Date(Date.now() - 125 * 60000) }));
+    open(gateway);
+    expect(await screen.findByText('No progress · 2 h 05 min')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show stalled' }));
+    expect(screen.getByRole('button', { name: 'Stalled 1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Silent paper')).toBeInTheDocument();
+    expect(screen.queryByText('Queued paper')).not.toBeInTheDocument();
   });
 });

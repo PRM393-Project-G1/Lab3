@@ -1,4 +1,5 @@
 import type { AnalysisFeed, AnalysisResults, WeakRule } from '../domain/analysis';
+import type { ActionDraft, AdminActionRecord } from '../domain/actions';
 import type { WorkerStatus } from '../domain/workers';
 import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } from '../domain/notifications';
 
@@ -14,6 +15,10 @@ export interface AdminGateway {
   /** The weak-topic rule from Remote Config, with safe defaults. */
   getWeakRule(): Promise<WeakRule>;
   watchWorkers(next: (workers: WorkerStatus[]) => void, error: (error: unknown) => void): Unsubscribe;
+  /** Recent admin actions, newest first. */
+  watchActions(next: (actions: AdminActionRecord[]) => void, error: (error: unknown) => void): Unsubscribe;
+  /** Creates the request once; retrying the same ID never queues it twice. */
+  requestAction(id: string, draft: ActionDraft): Promise<void>;
   watchRecipients(next: (users: NotificationRecipient[]) => void, error: (error: unknown) => void): Unsubscribe;
   watchAnnouncements(next: (requests: AnnouncementRequest[]) => void, error: (error: unknown) => void): Unsubscribe;
   queueAnnouncement(id: string, draft: AnnouncementDraft): Promise<void>;

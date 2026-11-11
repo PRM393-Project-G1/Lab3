@@ -1,6 +1,7 @@
-import { buildTopicTree, counts, parseAnalysis, parseReference, parseTopic, type AnalysisResults, type TopicNode, type TopicStat } from '../domain/analysis';
+import { buildTopicTree, counts, isRunning, parseAnalysis, parseReference, parseTopic, type AnalysisFeed, type AnalysisResults, type TopicNode, type TopicStat } from '../domain/analysis';
 import type { AdminGateway } from './gateway';
 import { parseWorker } from '../domain/workers';
+import { normalizeAction, parseAction, validateAction, type AdminActionRecord } from '../domain/actions';
 import { normalizeDraft, parseAnnouncement, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 
 const demoRecipients: NotificationRecipient[] = [
@@ -45,6 +46,8 @@ const analyses = sample.map(([id, title, authors, status, refs, issues], index) 
   return parseAnalysis(id, {
     paperTitle: title, paperAuthors: [...authors], status,
     createdAt: new Date(requested),
+    // The processing paper reports progress; the old queued one shows how a stalled job looks.
+    updatedAt: status === 'processing' ? new Date(anchor - 180000) : null,
     finishedAt: status === 'done' ? new Date(requested + (3 + refs / 3) * 60000) : null,
     summary: { totalRefs: refs, verified: Math.max(0, refs - issues - hallucinated - (refs ? 2 : 0)), error: issues,
       warning: refs ? 1 : 0, unverified: refs ? 1 : 0, hallucinated },
@@ -94,11 +97,49 @@ for (const analysis of analyses) {
   analysis.topicSummary = flat.filter((topic) => topic.flagged > 0);
 }
 
+const analysisObservers = new Set<(feed: AnalysisFeed) => void>();
+const actions: AdminActionRecord[] = [];
+const actionObservers = new Set<(records: AdminActionRecord[]) => void>();
+const emitAnalyses = () => analysisObservers.forEach((next) => next({ analyses: [...analyses], fromCache: false }));
+const emitActions = () => actionObservers.forEach((next) => next([...actions]));
+
+/** Plays the backend's part in memory, with the same refusals, so the demo never touches Firebase. */
+function applyDemoAction(id: string) {
+  const index = actions.findIndex((item) => item.id === id);
+  const action = actions[index];
+  const analysis = analyses.find((item) => item.id === action?.target);
+  if (!action) return;
+  let outcome: { status: 'completed' | 'failed'; result?: string; error?: string };
+  if (!analysis) outcome = { status: 'failed', error: 'This analysis no longer exists.' };
+  else if (action.type === 'cancelAnalysis') {
+    outcome = isRunning(analysis) ? { status: 'completed', result: 'Analysis stopped. The requester sees it as stopped by an administrator.' }
+      : { status: 'failed', error: `Only queued or processing analyses can be stopped; this one is ${analysis.status}.` };
+    if (outcome.status === 'completed') Object.assign(analysis, { status: 'cancelled', error: 'Stopped by an administrator.', finishedAt: new Date(), updatedAt: new Date() });
+  } else if (action.type === 'retryAnalysis') {
+    outcome = analysis.status === 'failed' || analysis.status === 'cancelled' ? { status: 'completed', result: 'Analysis queued again with its original settings.' }
+      : { status: 'failed', error: `Only failed or stopped analyses can be run again; this one is ${analysis.status}.` };
+    if (outcome.status === 'completed') Object.assign(analysis, { status: 'queued', error: null, progress: 0, createdAt: new Date(), updatedAt: new Date() });
+  } else outcome = { status: 'failed', error: 'This action is not supported by the backend.' };
+  actions[index] = { ...action, status: outcome.status, result: outcome.result ?? null, error: outcome.error ?? null, finishedAt: new Date() };
+  emitActions(); emitAnalyses();
+}
+
 export const demoGateway: AdminGateway = {
   watchAuth(next) { next({ uid: 'demo-admin', name: 'Demo administrator', email: 'admin@example.test' }); return () => {}; },
   watchRole(_uid, next) { next('admin'); return () => {}; },
   async signIn() {}, async signOut() {},
-  watchAnalyses(next) { next({ analyses, fromCache: false }); return () => {}; },
+  watchAnalyses(next) { analysisObservers.add(next); next({ analyses: [...analyses], fromCache: false }); return () => { analysisObservers.delete(next); }; },
+  watchActions(next) { actionObservers.add(next); next([...actions]); return () => { actionObservers.delete(next); }; },
+  async requestAction(id, raw) {
+    if (actions.some((item) => item.id === id)) return;
+    const draft = normalizeAction(raw);
+    const problem = validateAction(draft);
+    if (problem) throw new Error(problem);
+    actions.unshift(parseAction(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'queued' }));
+    emitActions();
+    // A short pause stands in for the backend poll, so the waiting state is visible.
+    setTimeout(() => applyDemoAction(id), 900);
+  },
   async getResults(id) { return results(id); },
   async getWeakRule() { return { threshold: 0.5, minRefs: 3 }; },
   watchWorkers(next) {

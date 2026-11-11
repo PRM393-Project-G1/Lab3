@@ -100,3 +100,63 @@ class FakeSteps:
             [{"document_id": "ref-001", "term_string": "attention"}],
             {"root": "HEAD_TERM", "children": [{"root": "attention", "score": 0.9, "children": []}]},
         )
+
+
+class FakeActionStore(FakeStore):
+    """FakeStore plus the admin action queue and user roles."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.actions: dict[str, dict[str, Any]] = {}
+        self.roles: dict[str, str] = {"admin-1": "admin", UID: "user"}
+        self.created: list[tuple[str, str, bool]] = []
+
+    def queue(self, action_id: str, **fields: Any) -> None:
+        self.actions[action_id] = {"requestedBy": "admin-1", "status": "queued", **fields}
+
+    def queued_action_ids(self) -> list[str]:
+        return [key for key, value in self.actions.items() if value["status"] == "queued"]
+
+    def claim_action(self, action_id: str, owner: str) -> dict[str, Any] | None:
+        action = self.actions.get(action_id)
+        if not action or action["status"] != "queued":
+            return None
+        snapshot = dict(action)
+        action.update(status="processing", workerId=owner)
+        return snapshot
+
+    def finish_action(self, action_id: str, owner: str, fields: dict[str, Any]) -> None:
+        action = self.actions[action_id]
+        if action["status"] == "processing" and action["workerId"] == owner:
+            action.update(fields)
+
+    def fail_unfinished_actions(self, message: str) -> int:
+        stale = [value for value in self.actions.values() if value["status"] == "processing"]
+        for value in stale:
+            value.update(status="failed", error=message)
+        return len(stale)
+
+    def is_admin(self, uid: str) -> bool:
+        return self.roles.get(uid) == "admin"
+
+    def create_analysis(self, analysis_id: str, uid: str, ai_assisted: bool) -> None:
+        self.created.append((analysis_id, uid, ai_assisted))
+        super().create_analysis(analysis_id, uid, ai_assisted)
+
+
+class FakeJobs:
+    def __init__(self) -> None:
+        self.running: set[str] = set()
+        self.started: list[tuple[str, str, bool]] = []
+        self.cancelled: list[str] = []
+
+    def is_running(self, analysis_id: str) -> bool:
+        return analysis_id in self.running
+
+    def start(self, analysis_id: str, uid: str, ai_assisted: bool) -> None:
+        self.started.append((analysis_id, uid, ai_assisted))
+        self.running.add(analysis_id)
+
+    async def cancel(self, analysis_id: str) -> None:
+        self.cancelled.append(analysis_id)
+        self.running.discard(analysis_id)

@@ -20,6 +20,7 @@ from .steps import Steps
 from .uploads import CloudinarySigner
 from .notification_worker import NotificationWorker
 from .heartbeat import Heartbeat
+from .admin_actions import ActionStore, AdminActionWorker
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ def create_app(
     steps: AnalysisSteps,
     signer: CloudinarySigner | None = None,
     notifications: NotificationWorker | None = None,
+    actions: ActionStore | None = None,
+    action_poll_seconds: float = 10,
 ) -> FastAPI:
     """Builds the API around its dependencies, so the tests can pass in fakes."""
 
@@ -61,6 +64,8 @@ def create_app(
         manager = app.state.manager
         heartbeat_task = asyncio.create_task(Heartbeat(
             BACKEND_HEARTBEAT, store.heartbeat, extra=lambda: {"runningJobs": manager.running}).run(stop_heartbeat))
+        # Admin actions need this process's job manager, so they run here and not in the notification worker.
+        action_task = asyncio.create_task(AdminActionWorker(actions, manager, action_poll_seconds).run(stop_heartbeat)) if actions else None
         try:
             yield
         finally:
@@ -69,6 +74,8 @@ def create_app(
             stop_heartbeat.set()
             if notification_task:
                 await notification_task
+            if action_task:
+                await action_task
             await heartbeat_task
             # What was running is marked as interrupted on the next start.
             await app.state.manager.cancel_all()
@@ -141,5 +148,7 @@ def build_app() -> FastAPI:
     signer = CloudinarySigner.from_env()
     if signer is None:
         logger.warning("No CLOUDINARY_* settings: report uploads are off")
-    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()), signer,
-        notifications=NotificationWorker(FirebaseNotificationStore()))
+    store = FirebaseStore()
+    return create_app(store, verify_token, Steps(Settings.from_env()), signer,
+        notifications=NotificationWorker(FirebaseNotificationStore()), actions=store,
+        action_poll_seconds=float(os.environ.get("ADMIN_ACTION_POLL_SECONDS", 10)))

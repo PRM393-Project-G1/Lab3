@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, BookOpen, ChevronDown, Clock3, FileText, GitBranch, Sparkles } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { buildTopicTree, referenceStatuses, type AnalysisResults, type ReferenceStatus, type TopicNode } from '../domain/analysis';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { ReferenceBadge, StatePanel, StatusBadge, formatDate } from '../components/ui';
+import { AnalysisActions } from '../components/AnalysisActions';
 
 type ResultState = { status: 'loading' } | { status: 'ready'; id: string; results: AnalysisResults } | { status: 'error'; id: string; message: string };
 const labels: Record<string, string> = { references: 'Reading references', verify: 'Verifying references', fabrication: 'Checking fabrication', fulltext: 'Collecting full text', topics: 'Extracting topics' };
@@ -14,6 +15,7 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
   const location = useLocation();
   const [state, setState] = useState<ResultState>({ status: 'loading' });
   const [retry, setRetry] = useState(0);
+  const reload = useCallback(() => setRetry((value) => value + 1), []);
   const [referenceFilter, setReferenceFilter] = useState<ReferenceStatus | 'all'>('all');
   const [tab, setTab] = useState<'topics' | 'references'>('topics');
   useEffect(() => {
@@ -78,6 +80,7 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
         </details>)}</div> : <p>No references match this status.</p>}
       </section>}
     </>}
+    <AnalysisActions gateway={gateway} analysis={analysis} onSettled={reload} />
   </>;
 }
 

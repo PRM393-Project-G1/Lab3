@@ -145,3 +145,30 @@ test('worker status is admin-readable and only the server writes it', async () =
   await assertFails(setDoc(doc(admin, 'workerStatus/backend'), { state: 'running', lastSeen: serverTimestamp() }));
   await assertFails(setDoc(doc(user, 'workerStatus/notifications'), { state: 'running' }));
 });
+
+const action = (overrides = {}) => ({
+  type: 'cancelAnalysis', target: '1706.03762', requestedBy: 'admin', status: 'queued', createdAt: serverTimestamp(), ...overrides,
+});
+
+test('only admin queues analysis actions, and requests are immutable', async () => {
+  const path = 'adminActions/rules-cancel-action-request-1234';
+  await assertSucceeds(setDoc(doc(admin, path), action({ reason: 'Stuck for an hour' })));
+  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-retry-action-request-1234'), action({ type: 'retryAnalysis' })));
+  await assertSucceeds(getDocs(collection(admin, 'adminActions')));
+  await assertFails(getDoc(doc(user, path)));
+  await assertFails(setDoc(doc(user, 'adminActions/rules-user-action-request-1234'), action({ requestedBy: 'user' })));
+  await assertFails(updateDoc(doc(admin, path), { status: 'completed' }));
+  await assertFails(deleteDoc(doc(admin, path)));
+});
+
+test('action shape, type, target and timestamp are enforced', async () => {
+  const invalid = [
+    { requestedBy: 'someone-else' }, { status: 'completed' }, { createdAt: new Date(2000, 0, 1) },
+    { type: 'deleteEverything' }, { target: '../users/admin' }, { target: 'users' }, { reason: 'x'.repeat(201) },
+    { result: 'Done already' }, { workerId: 'forged' },
+  ];
+  for (let i = 0; i < invalid.length; i++) {
+    await assertFails(setDoc(doc(admin, `adminActions/rules-invalid-action-number-${i}`), action(invalid[i])));
+  }
+  await assertFails(setDoc(doc(admin, 'adminActions/short'), action()));
+});

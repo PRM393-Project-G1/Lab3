@@ -1,6 +1,6 @@
 export const analysisStatuses = ['queued', 'processing', 'done', 'failed', 'cancelled', 'unknown'] as const;
 export type AnalysisStatus = typeof analysisStatuses[number];
-export type AnalysisFilter = 'all' | 'done' | 'running' | 'failed' | 'cancelled' | 'unknown';
+export type AnalysisFilter = 'all' | 'done' | 'running' | 'stalled' | 'failed' | 'cancelled' | 'unknown';
 export const referenceStatuses = ['hallucinated', 'error', 'warning', 'unverified', 'verified'] as const;
 export type ReferenceStatus = typeof referenceStatuses[number];
 export type Counts = Record<ReferenceStatus, number>;
@@ -13,6 +13,8 @@ export interface Analysis {
   status: AnalysisStatus;
   createdAt: Date | null;
   finishedAt: Date | null;
+  /** Last backend write; tells a slow job from a stalled one. */
+  updatedAt: Date | null;
   totalRefs: number;
   counts: Counts;
   progress: number;
@@ -91,7 +93,7 @@ export function parseAnalysis(id: string, data: RawDocument): Analysis {
     id, title: string(data.paperTitle).trim() || `arXiv:${id}`,
     authors: strings(data.paperAuthors),
     status: analysisStatuses.includes(data.status as AnalysisStatus) ? data.status as AnalysisStatus : 'unknown',
-    createdAt: date(data.createdAt), finishedAt: date(data.finishedAt),
+    createdAt: date(data.createdAt), finishedAt: date(data.finishedAt), updatedAt: date(data.updatedAt),
     totalRefs: typeof summary.totalRefs === 'number' ? number(summary.totalRefs) : totalCounts(tally),
     counts: tally, progress: Math.min(100, number(progress.percent)),
     stage: string(progress.stage, 'references'), error: typeof data.error === 'string' ? data.error : null,
@@ -141,10 +143,10 @@ export function summarize(analyses: Analysis[]) {
   return { total: analyses.length, done: analyses.filter((a) => a.status === 'done').length,
     running: analyses.filter(isRunning).length, failed: analyses.filter((a) => a.status === 'failed').length };
 }
-export function filterAnalyses(analyses: Analysis[], query: string, filter: AnalysisFilter, scope: AnalysisScope = {}): Analysis[] {
+export function filterAnalyses(analyses: Analysis[], query: string, filter: AnalysisFilter, scope: AnalysisScope = {}, now = new Date()): Analysis[] {
   const text = query.trim().toLowerCase();
   return analyses.filter((a) =>
-    (filter === 'all' || (filter === 'running' ? isRunning(a) : a.status === filter)) &&
+    (filter === 'all' || (filter === 'running' ? isRunning(a) : filter === 'stalled' ? stalledFor(a, now) !== null : a.status === filter)) &&
     (!scope.requester || a.requestedBy === scope.requester) &&
     (!scope.mode || scope.mode === 'all' || a.aiAssisted === (scope.mode === 'ai')) &&
     (!text || a.title.toLowerCase().includes(text) || a.id.toLowerCase().includes(text)),
@@ -187,4 +189,21 @@ export function buildTopicTree(topics: Topic[], references: Reference[], rule: W
   }
   roots.forEach(aggregate);
   return roots.sort(byIssues);
+}
+
+// Saffron alone may run for up to 30 minutes without a progress write.
+export const stallMinutes = { processing: 40, queued: 120 } as const;
+/** Minutes since the last progress write, when a running job has been silent for too long. */
+export function stalledFor(analysis: Analysis, now: Date): number | null {
+  if (analysis.status !== 'processing' && analysis.status !== 'queued') return null;
+  const since = analysis.updatedAt ?? analysis.createdAt;
+  if (!since) return null;
+  const minutes = Math.floor((now.getTime() - since.getTime()) / 60000);
+  return minutes >= stallMinutes[analysis.status] ? minutes : null;
+}
+
+export function formatMinutes(minutes: number): string {
+  if (minutes < 120) return `${minutes} min`;
+  if (minutes < 2880) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+  return `${Math.floor(minutes / 1440)} days ${Math.floor((minutes % 1440) / 60)} h`;
 }
