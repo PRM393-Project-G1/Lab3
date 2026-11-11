@@ -1,6 +1,7 @@
 import { buildTopicTree, counts, isRunning, parseAnalysis, parseReference, parseTopic, type AnalysisFeed, type AnalysisResults, type TopicNode, type TopicStat } from '../domain/analysis';
 import type { AdminGateway } from './gateway';
 import { parseWorker } from '../domain/workers';
+import { parseUser, type DirectoryUser } from '../domain/users';
 import { normalizeAction, parseAction, validateAction, type AdminActionRecord } from '../domain/actions';
 import { normalizeDraft, parseAnnouncement, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 
@@ -103,38 +104,77 @@ const actionObservers = new Set<(records: AdminActionRecord[]) => void>();
 const emitAnalyses = () => analysisObservers.forEach((next) => next({ analyses: [...analyses], fromCache: false }));
 const emitActions = () => actionObservers.forEach((next) => next([...actions]));
 
+// Sample directory: the regular users above plus the demo admin itself.
+const demoUsers: DirectoryUser[] = [
+  parseUser('demo-admin', { displayName: 'Demo administrator', email: 'admin@example.test', role: 'admin', hasDevice: false,
+    createdAt: new Date(anchor - 40 * 86400000), lastSignInAt: new Date(anchor - 600000) }),
+  ...demoRecipients.map((user, index) => parseUser(user.uid, { displayName: user.name, email: `${user.uid.slice(5)}@example.test`, role: 'user',
+    hasDevice: user.hasDevice, createdAt: new Date(anchor - (30 - index * 7) * 86400000), lastSignInAt: new Date(anchor - (index + 1) * 7200000) })),
+];
+const userObservers = new Set<(users: DirectoryUser[]) => void>();
+const recipientObservers = new Set<(users: NotificationRecipient[]) => void>();
+const recipients = () => demoUsers.filter((user) => user.role === 'user').map(({ uid, name, hasDevice }) => ({ uid, name, hasDevice }));
+const emitUsers = () => { userObservers.forEach((next) => next([...demoUsers])); recipientObservers.forEach((next) => next(recipients())); };
+
+type Outcome = { status: 'completed' | 'failed'; result: string | null; error: string | null };
+const done = (result: string): Outcome => ({ status: 'completed', result, error: null });
+const refuse = (error: string): Outcome => ({ status: 'failed', result: null, error });
+
 /** Plays the backend's part in memory, with the same refusals, so the demo never touches Firebase. */
 function applyDemoAction(id: string) {
   const index = actions.findIndex((item) => item.id === id);
   const action = actions[index];
-  const analysis = analyses.find((item) => item.id === action?.target);
   if (!action) return;
-  let outcome: { status: 'completed' | 'failed'; result?: string; error?: string };
-  if (!analysis) outcome = { status: 'failed', error: 'This analysis no longer exists.' };
-  else if (action.type === 'cancelAnalysis') {
-    outcome = isRunning(analysis) ? { status: 'completed', result: 'Analysis stopped. The requester sees it as stopped by an administrator.' }
-      : { status: 'failed', error: `Only queued or processing analyses can be stopped; this one is ${analysis.status}.` };
-    if (outcome.status === 'completed') Object.assign(analysis, { status: 'cancelled', error: 'Stopped by an administrator.', finishedAt: new Date(), updatedAt: new Date() });
-  } else if (action.type === 'retryAnalysis') {
-    outcome = analysis.status === 'failed' || analysis.status === 'cancelled' || (analysis.status === 'done' && analysis.hidden)
-      ? { status: 'completed', result: 'Analysis queued again with its original settings.' }
-      : { status: 'failed', error: `Only failed, stopped or hidden analyses can be run again; this one is ${analysis.status}.` };
-    if (outcome.status === 'completed') Object.assign(analysis, { status: 'queued', error: null, progress: 0, hidden: false, hiddenReason: null, createdAt: new Date(), updatedAt: new Date() });
-  } else if (action.type === 'hideAnalysis') {
-    outcome = analysis.status !== 'done' ? { status: 'failed', error: `Only completed analyses can be hidden; this one is ${analysis.status}.` }
-      : analysis.hidden ? { status: 'failed', error: 'This analysis is already hidden.' }
-        : { status: 'completed', result: 'Results hidden. Users now see that an administrator removed them.' };
-    if (outcome.status === 'completed') Object.assign(analysis, { hidden: true, hiddenReason: action.reason });
-  } else if (action.type === 'unhideAnalysis') {
-    outcome = analysis.hidden ? { status: 'completed', result: 'Results visible to users again.' } : { status: 'failed', error: 'This analysis is not hidden.' };
-    if (outcome.status === 'completed') Object.assign(analysis, { hidden: false, hiddenReason: null });
-  } else if (action.type === 'deleteAnalysis') {
-    outcome = isRunning(analysis) ? { status: 'failed', error: 'Stop this analysis before deleting it.' }
-      : { status: 'completed', result: 'Analysis and its results deleted. Users can request the paper again.' };
-    if (outcome.status === 'completed') analyses.splice(analyses.indexOf(analysis), 1);
-  } else outcome = { status: 'failed', error: 'This action is not supported by the backend.' };
-  actions[index] = { ...action, status: outcome.status, result: outcome.result ?? null, error: outcome.error ?? null, finishedAt: new Date() };
-  emitActions(); emitAnalyses();
+  const outcome = action.type === 'setRole' || action.type === 'setDisabled' ? applyUserAction(action) : applyAnalysisAction(action);
+  actions[index] = { ...action, ...outcome, finishedAt: new Date() };
+  emitActions(); emitAnalyses(); emitUsers();
+}
+
+function applyUserAction(action: AdminActionRecord): Outcome {
+  const user = demoUsers.find((item) => item.uid === action.target);
+  if (!user) return refuse('This user has no Realtron profile.');
+  if (action.type === 'setRole') {
+    if (user.role === action.role) return refuse(`This user is already ${user.role === 'admin' ? 'an admin' : 'a regular user'}.`);
+    if (action.role === 'admin' && user.disabled) return refuse('Enable this account before making it an admin.');
+    if (action.role === 'user' && demoUsers.filter((item) => item.role === 'admin').length <= 1) return refuse('Realtron needs at least one admin.');
+    user.role = action.role === 'admin' ? 'admin' : 'user';
+    return done(user.role === 'admin' ? 'Admin access granted.' : 'Admin access removed. The web workspace closes for them at once.');
+  }
+  if (action.disabled && user.role === 'admin') return refuse('Remove admin access before disabling this account.');
+  user.disabled = action.disabled === true;
+  return done(user.disabled ? 'Account disabled. The user is signed out within an hour and cannot sign in again.' : 'Account enabled. The user can sign in again.');
+}
+
+function applyAnalysisAction(action: AdminActionRecord): Outcome {
+  const analysis = analyses.find((item) => item.id === action.target);
+  if (!analysis) return refuse('This analysis no longer exists.');
+  switch (action.type) {
+    case 'cancelAnalysis':
+      if (!isRunning(analysis)) return refuse(`Only queued or processing analyses can be stopped; this one is ${analysis.status}.`);
+      Object.assign(analysis, { status: 'cancelled', error: 'Stopped by an administrator.', finishedAt: new Date(), updatedAt: new Date() });
+      return done('Analysis stopped. The requester sees it as stopped by an administrator.');
+    case 'retryAnalysis':
+      if (analysis.status !== 'failed' && analysis.status !== 'cancelled' && !(analysis.status === 'done' && analysis.hidden)) {
+        return refuse(`Only failed, stopped or hidden analyses can be run again; this one is ${analysis.status}.`);
+      }
+      Object.assign(analysis, { status: 'queued', error: null, progress: 0, hidden: false, hiddenReason: null, createdAt: new Date(), updatedAt: new Date() });
+      return done('Analysis queued again with its original settings.');
+    case 'hideAnalysis':
+      if (analysis.status !== 'done') return refuse(`Only completed analyses can be hidden; this one is ${analysis.status}.`);
+      if (analysis.hidden) return refuse('This analysis is already hidden.');
+      Object.assign(analysis, { hidden: true, hiddenReason: action.reason });
+      return done('Results hidden. Users now see that an administrator removed them.');
+    case 'unhideAnalysis':
+      if (!analysis.hidden) return refuse('This analysis is not hidden.');
+      Object.assign(analysis, { hidden: false, hiddenReason: null });
+      return done('Results visible to users again.');
+    case 'deleteAnalysis':
+      if (isRunning(analysis)) return refuse('Stop this analysis before deleting it.');
+      analyses.splice(analyses.indexOf(analysis), 1);
+      return done('Analysis and its results deleted. Users can request the paper again.');
+    default:
+      return refuse('This action is not supported by the backend.');
+  }
 }
 
 export const demoGateway: AdminGateway = {
@@ -146,7 +186,7 @@ export const demoGateway: AdminGateway = {
   async requestAction(id, raw) {
     if (actions.some((item) => item.id === id)) return;
     const draft = normalizeAction(raw);
-    const problem = validateAction(draft);
+    const problem = validateAction(draft, 'demo-admin');
     if (problem) throw new Error(problem);
     actions.unshift(parseAction(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'queued' }));
     emitActions();
@@ -163,15 +203,16 @@ export const demoGateway: AdminGateway = {
     const timer = setInterval(emit, 30000);
     return () => clearInterval(timer);
   },
-  watchRecipients(next) { next(demoRecipients); return () => {}; },
+  watchUsers(next) { userObservers.add(next); next([...demoUsers]); return () => { userObservers.delete(next); }; },
+  watchRecipients(next) { recipientObservers.add(next); next(recipients()); return () => { recipientObservers.delete(next); }; },
   watchAnnouncements(next) { announcementObservers.add(next); next([...announcements]); return () => { announcementObservers.delete(next); }; },
   async queueAnnouncement(id, raw) {
     if (announcements.some((item) => item.id === id)) return;
     const draft = normalizeDraft(raw);
-    const recipients = draft.audience === 'all' ? demoRecipients : demoRecipients.filter((user) => draft.recipientUids.includes(user.uid));
-    const withDevice = recipients.filter((user) => user.hasDevice).length;
+    const targets = draft.audience === 'all' ? recipients() : recipients().filter((user) => draft.recipientUids.includes(user.uid));
+    const withDevice = targets.filter((user) => user.hasDevice).length;
     announcements.unshift(parseAnnouncement(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'completed',
-      counts: { recipients: recipients.length, inboxStored: recipients.length, pushAccepted: withDevice, withoutDevice: recipients.length - withDevice } }));
+      counts: { recipients: targets.length, inboxStored: targets.length, pushAccepted: withDevice, withoutDevice: targets.length - withDevice } }));
     announcementObservers.forEach((next) => next([...announcements]));
   },
 };

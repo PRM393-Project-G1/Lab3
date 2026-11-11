@@ -147,3 +147,55 @@ def test_delete_removes_finished_analyses_but_never_running_ones():
     store.queue("admin-action-delete-0002", type="deleteAnalysis", target=ID)
     assert process(store, jobs, "admin-action-delete-0002")["status"] == "completed"
     assert ID not in store.analyses and store.deleted == [ID]
+
+
+def user_action(store, jobs, action_id, **fields):
+    store.queue(action_id, **fields)
+    return process(store, jobs, action_id)
+
+
+def test_grant_and_revoke_admin_access():
+    store, jobs = FakeActionStore(), FakeJobs()
+    assert user_action(store, jobs, "admin-action-grant-00001", type="setRole", target=UID, role="admin")["status"] == "completed"
+    assert store.roles[UID] == "admin"
+    assert user_action(store, jobs, "admin-action-grant-00002", type="setRole", target=UID, role="admin")["error"] == "This user is already an admin."
+    assert user_action(store, jobs, "admin-action-revoke-0001", type="setRole", target=UID, role="user")["status"] == "completed"
+    assert store.roles[UID] == "user"
+    store.queue("admin-action-self-change-1", type="setRole", target="admin-1", role="user")
+    assert process(store, jobs, "admin-action-self-change-1")["error"] == "Admins cannot change their own role or account."
+
+
+def test_the_last_admin_cannot_be_demoted():
+    store, jobs = FakeActionStore(), FakeJobs()
+    store.roles = {"admin-1": "admin", "other-admin": "admin"}
+
+    def count():
+        return 1  # Another worker or a manual edit left one admin.
+
+    store.admin_count = count
+    assert user_action(store, jobs, "admin-action-last-admin-0", type="setRole", target="other-admin", role="user")["error"] == "Realtron needs at least one admin."
+    assert store.roles["other-admin"] == "admin"
+
+
+def test_disable_and_enable_regular_accounts_only():
+    store, jobs = FakeActionStore(), FakeJobs()
+    result = user_action(store, jobs, "admin-action-disable-001", type="setDisabled", target=UID, disabled=True, reason="Spam requests")
+    assert result["status"] == "completed" and UID in store.disabled
+    assert user_action(store, jobs, "admin-action-promote-001", type="setRole", target=UID, role="admin")["error"] == "Enable this account before making it an admin."
+    assert user_action(store, jobs, "admin-action-enable-0001", type="setDisabled", target=UID, disabled=False)["status"] == "completed"
+    assert UID not in store.disabled
+    store.roles["admin-2"] = "admin"
+    assert user_action(store, jobs, "admin-action-disable-002", type="setDisabled", target="admin-2", disabled=True)["error"] == "Remove admin access before disabling this account."
+
+
+@pytest.mark.parametrize("fields", [
+    {"type": "setRole", "target": UID, "role": "owner"},
+    {"type": "setRole", "target": "admin-1", "role": "user"},
+    {"type": "setDisabled", "target": UID, "disabled": "yes"},
+    {"type": "setDisabled", "target": "users/x", "disabled": True},
+    {"type": "setRole", "target": "nobody", "role": "admin"},
+])
+def test_user_actions_refuse_bad_input_and_self_changes(fields):
+    store, jobs = FakeActionStore(), FakeJobs()
+    assert user_action(store, jobs, "admin-action-invalid-user", **fields)["status"] == "failed"
+    assert store.roles == {"admin-1": "admin", UID: "user"} and not store.disabled

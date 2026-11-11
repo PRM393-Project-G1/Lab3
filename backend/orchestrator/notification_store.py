@@ -2,43 +2,53 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import firebase_admin
-from firebase_admin import firestore, messaging
+from firebase_admin import auth, firestore, messaging
 from google.api_core.exceptions import AlreadyExists
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from .directory import Account, changed, directory_fields
 from .heartbeat import WORKER_STATUS
 from .notification_worker import ADMIN_MESSAGE, DIRECTORY, REQUESTS, Announcement, PushResult
 
+logger = logging.getLogger(__name__)
+
+
+def list_accounts() -> dict[str, Account]:
+    return {record.uid: Account.from_record(record) for record in auth.list_users().iterate_all()}
+
 
 class FirebaseNotificationStore:
-    def __init__(self, db: Any = None) -> None:
+    def __init__(self, db: Any = None, accounts: Callable[[], dict[str, Account]] | None = None) -> None:
         if db is None:
             if not firebase_admin._apps:
                 firebase_admin.initialize_app()
             db = firestore.client()
         self._db = db
+        self._accounts = accounts or list_accounts
 
     def sync_directory(self) -> None:
         directory = self._db.collection(DIRECTORY)
         existing = {snapshot.id: snapshot.to_dict() for snapshot in directory.stream()}
-        eligible = set()
+        try:
+            accounts: dict[str, Account] | None = self._accounts()
+        except Exception:
+            # Keep the last known Auth fields rather than blank them.
+            logger.warning("Could not list Firebase Auth users for the admin directory", exc_info=True)
+            accounts = None
+        listed = set()
         for snapshot in self._db.collection("users").stream():
-            user = snapshot.to_dict() or {}
-            if user.get("role", "user") != "user":
-                continue
-            eligible.add(snapshot.id)
-            name, tokens = user.get("displayName"), user.get("fcmTokens")
-            fields = {
-                "displayName": name if isinstance(name, str) and name.strip() else "Unnamed user",
-                "hasDevice": isinstance(tokens, list) and any(isinstance(token, str) and token for token in tokens),
-            }
-            if any((existing.get(snapshot.id) or {}).get(key) != value for key, value in fields.items()):
+            listed.add(snapshot.id)
+            previous = existing.get(snapshot.id)
+            fields = directory_fields(snapshot.to_dict() or {}, (accounts or {}).get(snapshot.id), previous)
+            if changed(previous, fields):
                 directory.document(snapshot.id).set({**fields, "updatedAt": firestore.SERVER_TIMESTAMP})
-        for uid in existing.keys() - eligible:
+        for uid in existing.keys() - listed:
             directory.document(uid).delete()
 
     def _request(self, request_id: str):

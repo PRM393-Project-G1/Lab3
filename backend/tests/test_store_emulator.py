@@ -2,6 +2,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,3 +54,38 @@ def test_delete_removes_the_analysis_and_all_its_results(store):
     store.delete_analysis("2101.00002")
     assert store.get_analysis("2101.00002") is None
     assert not list(parent.collection("references").stream()) and not list(parent.collection("topics").stream())
+
+
+class FakeAuth:
+    """Stands in for firebase_admin.auth so the test never reaches real accounts."""
+
+    def __init__(self):
+        self.disabled, self.revoked = {}, []
+
+    def get_user(self, uid):
+        return SimpleNamespace(uid=uid, email=f"{uid}@example.test", disabled=self.disabled.get(uid, False),
+                               user_metadata=SimpleNamespace(creation_timestamp=1767225600000, last_sign_in_timestamp=None))
+
+    def update_user(self, uid, disabled):
+        self.disabled[uid] = disabled
+
+    def revoke_refresh_tokens(self, uid):
+        self.revoked.append(uid)
+
+
+def test_role_and_account_changes_update_the_profile_auth_and_directory(store):
+    from orchestrator.store import FirebaseStore
+    fake = FakeAuth()
+    users = FirebaseStore(store._db, auth_api=fake)
+    profile = store._db.collection("users").document("emulator-managed-user")
+    profile.set({"role": "user", "displayName": "Managed", "fcmTokens": ["private-token"]})
+    before = users.admin_count()
+    users.set_role(profile.id, "admin")
+    assert profile.get().to_dict()["role"] == "admin" and users.admin_count() == before + 1
+    entry = store._db.collection("adminUserDirectory").document(profile.id).get().to_dict()
+    assert entry["role"] == "admin" and entry["email"] == "emulator-managed-user@example.test" and "fcmTokens" not in entry
+    users.set_role(profile.id, "user")
+    users.set_disabled(profile.id, True)
+    assert fake.revoked == [profile.id] and users.get_user(profile.id)["disabled"] is True
+    assert store._db.collection("adminUserDirectory").document(profile.id).get().to_dict()["disabled"] is True
+    assert users.get_user("emulator-missing-user") is None

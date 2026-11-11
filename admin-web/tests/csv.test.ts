@@ -65,3 +65,31 @@ describe('stalled jobs and action drafts', async () => {
     expect(availableActions(parseAnalysis('a', { status: 'done', hidden: true }))).toEqual(['unhideAnalysis', 'retryAnalysis', 'deleteAnalysis']);
   });
 });
+
+describe('user directory helpers', async () => {
+  const { parseUser, filterUsers, activityByUser } = await import('../src/domain/users');
+  const { userActions, validateAction, normalizeAction } = await import('../src/domain/actions');
+  const users = [parseUser('b', { displayName: 'Bao', role: 'user' }), parseUser('a', { displayName: 'An', role: 'admin', email: 'an@x.test' }),
+    parseUser('c', { displayName: 'Chi', role: 'user', disabled: true })];
+  it('lists admins first, filters by state and searches emails', () => {
+    expect(filterUsers(users, '', 'all').map((u) => u.uid)).toEqual(['a', 'b', 'c']);
+    expect(filterUsers(users, '', 'user').map((u) => u.uid)).toEqual(['b']);
+    expect(filterUsers(users, '', 'disabled').map((u) => u.uid)).toEqual(['c']);
+    expect(filterUsers(users, 'AN@X', 'all').map((u) => u.uid)).toEqual(['a']);
+    expect(parseUser('x', { displayName: ' ' })).toMatchObject({ name: 'Unnamed user', role: 'user', disabled: false, email: null });
+  });
+  it('counts activity per requester', () => {
+    const activity = activityByUser([parseAnalysis('1', { requestedBy: 'a', status: 'failed' }), parseAnalysis('2', { requestedBy: 'a', status: 'done' }), parseAnalysis('3', {})]);
+    expect(activity.get('a')).toMatchObject({ total: 2, done: 1, failed: 1 });
+    expect(activity.size).toBe(1);
+  });
+  it('offers only safe changes and refuses self changes', () => {
+    expect(userActions(users[0], 'a').map((d) => [d.type, d.role ?? d.disabled])).toEqual([['setRole', 'admin'], ['setDisabled', true]]);
+    expect(userActions(users[1], 'b')).toEqual([{ type: 'setRole', target: 'a', role: 'user' }]);
+    expect(userActions(users[2], 'a')).toEqual([{ type: 'setDisabled', target: 'c', disabled: false }]);
+    expect(userActions(users[1], 'a')).toEqual([]);
+    expect(validateAction({ type: 'setRole', target: 'a', role: 'user' }, 'a')).toMatch(/your own/);
+    expect(validateAction({ type: 'setDisabled', target: 'b' }, 'a')).toMatch(/disable or enable/);
+    expect(normalizeAction({ type: 'setRole', target: 'b', role: 'admin', disabled: true, reason: ' ' })).toEqual({ type: 'setRole', target: 'b', role: 'admin' });
+  });
+});

@@ -9,6 +9,7 @@ import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } fr
 import { normalizeDraft, parseAnnouncement } from '../src/domain/notifications';
 import { parseWorker, type WorkerStatus } from '../src/domain/workers';
 import { parseAction, type AdminActionRecord } from '../src/domain/actions';
+import { parseUser, type DirectoryUser } from '../src/domain/users';
 
 class FakeGateway implements AdminGateway {
   recipients: NotificationRecipient[] = [
@@ -18,6 +19,12 @@ class FakeGateway implements AdminGateway {
   announcements: AnnouncementRequest[] = [];
   announcementNext?: (requests: AnnouncementRequest[]) => void;
   watchRecipients = vi.fn<AdminGateway['watchRecipients']>((next) => { queueMicrotask(() => next(this.recipients)); return () => {}; });
+  users: DirectoryUser[] = [
+    parseUser('admin', { displayName: 'Test admin', email: 'admin@example.test', role: 'admin' }),
+    parseUser('user-a', { displayName: 'User A', email: 'a@example.test', role: 'user', hasDevice: true, lastSignInAt: new Date() }),
+    parseUser('user-b', { displayName: 'User B', email: 'b@example.test', role: 'user', disabled: true }),
+  ];
+  watchUsers = vi.fn<AdminGateway['watchUsers']>((next) => { queueMicrotask(() => next(this.users)); return () => {}; });
   watchAnnouncements = vi.fn<AdminGateway['watchAnnouncements']>((next) => { this.announcementNext = next; queueMicrotask(() => next(this.announcements)); return () => {}; });
   queueAnnouncement = vi.fn<AdminGateway['queueAnnouncement']>(async (id, draft) => {
     this.announcements = [parseAnnouncement(id, { ...draft, status: 'queued', requestedBy: 'admin', createdAt: new Date() }), ...this.announcements];
@@ -377,5 +384,49 @@ describe('hidden and deleted analyses', () => {
     gateway.getResults.mockRejectedValue({ code: 'not-found' });
     act(() => gateway.settle({ status: 'completed', result: 'Analysis and its results deleted.' }));
     expect(await screen.findByText('This analysis could not be found. It may have been deleted.')).toBeInTheDocument();
+  });
+});
+
+describe('user management', () => {
+  it('lists people with roles and activity, and filters and searches them', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/users');
+    const table = await screen.findByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(screen.getByLabelText('Admins: 1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Disabled: 1')).toBeInTheDocument();
+    expect(within(table).getByText('1 analysis')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Disabled 1' }));
+    expect(within(screen.getByRole('table')).getByText('User B')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).queryByText('User A')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All users 3' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search name, email or UID' }), 'a@example');
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
+  });
+
+  it('shows a user’s analyses and queues role and access changes after confirmation', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/users/user-a');
+    await screen.findByRole('heading', { name: 'User A' });
+    expect(screen.getByRole('link', { name: 'Attention Is All You Need' })).toHaveAttribute('href', '/analyses/1706.03762');
+    await userEvent.click(screen.getByRole('button', { name: 'Make admin' }));
+    expect(screen.getByText(/Give User A admin access/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Make admin' }));
+    expect(gateway.requestAction.mock.calls[0][1]).toEqual({ type: 'setRole', target: 'user-a', role: 'admin', reason: '' });
+    act(() => gateway.settle({ status: 'failed', error: 'Enable this account before making it an admin.' }));
+    expect(await screen.findByText(/Failed .* Enable this account/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Disable account' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Reason for the log/ }), 'Spam');
+    await userEvent.click(screen.getByRole('button', { name: 'Disable account' }));
+    expect(gateway.requestAction.mock.calls[1][1]).toEqual({ type: 'setDisabled', target: 'user-a', disabled: true, reason: 'Spam' });
+  });
+
+  it('offers enable for disabled accounts and nothing for your own account', async () => {
+    const gateway = new FakeGateway(); open(gateway, '/users/user-b');
+    expect(await screen.findByRole('button', { name: 'Enable account' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Make admin' })).not.toBeInTheDocument();
+    cleanupAndOpen(gateway, '/users/admin');
+    expect(await screen.findByText(/This is your account/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /admin/i })).not.toBeInTheDocument();
+    cleanupAndOpen(gateway, '/users/ghost');
+    expect(await screen.findByText('User not found')).toBeInTheDocument();
   });
 });

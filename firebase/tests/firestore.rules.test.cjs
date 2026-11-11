@@ -174,3 +174,22 @@ test('action shape, type, target and timestamp are enforced', async () => {
   }
   await assertFails(setDoc(doc(admin, 'adminActions/short'), action()));
 });
+
+test('admins queue role and account changes for others, never for themselves', async () => {
+  const change = (overrides) => {
+    const data = action({ type: 'setRole', target: 'user', role: 'admin', ...overrides });
+    Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
+    return data;
+  };
+  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-grant-admin-request-1234'), change({})));
+  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-disable-user-request-1234'), change({ type: 'setDisabled', role: undefined, disabled: true })));
+  const invalid = [
+    { target: 'admin' }, { role: 'owner' }, { role: undefined }, { disabled: true },
+    { type: 'setDisabled', role: undefined, disabled: 'yes' }, { type: 'setDisabled', role: 'admin', disabled: true },
+    { target: 'users/user' }, { target: '' }, { type: 'cancelAnalysis', target: '1706.03762', role: 'admin' },
+  ];
+  for (let i = 0; i < invalid.length; i++) {
+    await assertFails(setDoc(doc(admin, `adminActions/rules-invalid-user-action-${i}`), change(invalid[i])));
+  }
+  await assertFails(setDoc(doc(user, 'adminActions/rules-user-self-promotion-1234'), change({ requestedBy: 'user', target: 'other' })));
+});

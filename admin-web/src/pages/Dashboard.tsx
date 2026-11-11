@@ -35,7 +35,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
       if (active) setState({ status: 'ready', feed });
     }, (error) => { if (active) setState({ status: 'error', message: errorMessage(error) }); });
     // Names are a convenience: without the directory, requesters show as short UIDs.
-    const stopNames = gateway.watchRecipients((users) => { if (active) setNames(new Map(users.map((user) => [user.uid, user.name]))); }, () => {});
+    const stopNames = gateway.watchUsers((users) => { if (active) setNames(new Map(users.map((user) => [user.uid, user.name]))); }, () => {});
     return () => { active = false; stop(); stopNames(); };
   }, [gateway, retry]);
 

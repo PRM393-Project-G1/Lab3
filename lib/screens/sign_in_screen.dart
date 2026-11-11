@@ -71,6 +71,11 @@ class SignInScreen extends StatelessWidget {
         tone: BannerTone.error,
         title: 'Sign-in failed',
       ),
+      SignInResult.disabled => const InfoBanner(
+        tone: BannerTone.error,
+        title: 'This account is disabled',
+        message: 'An administrator disabled it. Contact the Realtron team.',
+      ),
       _ => null,
     };
     return banner == null

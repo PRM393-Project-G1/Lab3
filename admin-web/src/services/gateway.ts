@@ -1,4 +1,5 @@
 import type { AnalysisFeed, AnalysisResults, WeakRule } from '../domain/analysis';
+import type { DirectoryUser } from '../domain/users';
 import type { ActionDraft, AdminActionRecord } from '../domain/actions';
 import type { WorkerStatus } from '../domain/workers';
 import type { AnnouncementDraft, AnnouncementRequest, NotificationRecipient } from '../domain/notifications';
@@ -19,6 +20,8 @@ export interface AdminGateway {
   watchActions(next: (actions: AdminActionRecord[]) => void, error: (error: unknown) => void): Unsubscribe;
   /** Creates the request once; retrying the same ID never queues it twice. */
   requestAction(id: string, draft: ActionDraft): Promise<void>;
+  /** The admin directory: every profile with its role and account state, never device tokens. */
+  watchUsers(next: (users: DirectoryUser[]) => void, error: (error: unknown) => void): Unsubscribe;
   watchRecipients(next: (users: NotificationRecipient[]) => void, error: (error: unknown) => void): Unsubscribe;
   watchAnnouncements(next: (requests: AnnouncementRequest[]) => void, error: (error: unknown) => void): Unsubscribe;
   queueAnnouncement(id: string, draft: AnnouncementDraft): Promise<void>;

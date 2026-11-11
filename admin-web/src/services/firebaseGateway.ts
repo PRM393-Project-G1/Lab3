@@ -7,6 +7,7 @@ import type { AdminGateway } from './gateway';
 import { invalidWebAppId, missingConfig, requiredConfig } from './firebaseConfig';
 import { normalizeDraft, parseAnnouncement, validateDraft } from '../domain/notifications';
 import { parseWorker } from '../domain/workers';
+import { parseUser } from '../domain/users';
 import { normalizeAction, parseAction, validateAction } from '../domain/actions';
 
 let gateway: AdminGateway | undefined;
@@ -64,9 +65,12 @@ export function getFirebaseGateway(): AdminGateway {
       });
     },
     signOut: () => signOut(auth),
-    watchRecipients: (next, error) => onSnapshot(collection(db, 'adminUserDirectory'), (snapshot) => next(snapshot.docs.map((item) => ({
-      uid: item.id, name: typeof item.data().displayName === 'string' ? item.data().displayName : 'Unnamed user', hasDevice: item.data().hasDevice === true,
-    })).sort((a, b) => a.name.localeCompare(b.name))), error),
+    watchUsers: (next, error) => onSnapshot(collection(db, 'adminUserDirectory'), (snapshot) =>
+      next(snapshot.docs.map((item) => parseUser(item.id, item.data()))), error),
+    // The directory now lists admins too; announcements only ever go to regular users.
+    watchRecipients: (next, error) => onSnapshot(collection(db, 'adminUserDirectory'), (snapshot) => next(snapshot.docs
+      .map((item) => parseUser(item.id, item.data())).filter((user) => user.role === 'user')
+      .map(({ uid, name, hasDevice }) => ({ uid, name, hasDevice })).sort((a, b) => a.name.localeCompare(b.name))), error),
     watchAnnouncements: (next, error) => onSnapshot(query(collection(db, 'adminNotificationRequests'), orderBy('createdAt', 'desc'), limit(30)),
       (snapshot) => next(snapshot.docs.map((item) => parseAnnouncement(item.id, item.data()))), error),
     async queueAnnouncement(id, raw) {
@@ -100,10 +104,10 @@ export function getFirebaseGateway(): AdminGateway {
       (snapshot) => next(snapshot.docs.map((item) => parseAction(item.id, item.data()))), error),
     async requestAction(id, raw) {
       const draft = normalizeAction(raw);
-      const problem = validateAction(draft);
-      if (problem) throw new Error(problem);
       const uid = auth.currentUser?.uid;
       if (!uid) throw Object.assign(new Error('Sign in first.'), { code: 'auth/user-signed-out' });
+      const problem = validateAction(draft, uid);
+      if (problem) throw new Error(problem);
       // Same pattern as announcements: create once, a retry of this ID only reads.
       await runTransaction(db, async (transaction) => {
         const reference = doc(db, 'adminActions', id);

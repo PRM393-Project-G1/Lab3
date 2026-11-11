@@ -28,6 +28,9 @@ HIDE_ANALYSIS = "hideAnalysis"
 UNHIDE_ANALYSIS = "unhideAnalysis"
 DELETE_ANALYSIS = "deleteAnalysis"
 ANALYSIS_ACTIONS = (CANCEL_ANALYSIS, RETRY_ANALYSIS, HIDE_ANALYSIS, UNHIDE_ANALYSIS, DELETE_ANALYSIS)
+SET_ROLE = "setRole"
+SET_DISABLED = "setDisabled"
+USER_ACTIONS = (SET_ROLE, SET_DISABLED)
 STOPPED_BY_ADMIN = "Stopped by an administrator."
 VISIBLE = {"hidden": False, "hiddenReason": None, "hiddenBy": None, "hiddenAt": None}
 GENERIC_FAILURE = "Something went wrong on the server. Check the result before trying again."
@@ -41,25 +44,43 @@ class ActionError(Exception):
     """A refusal written back for the admin to read."""
 
 
+def _is_uid(value: Any) -> bool:
+    return isinstance(value, str) and 1 <= len(value) <= 128 and "/" not in value
+
+
 @dataclass(frozen=True)
 class AdminAction:
     type: str
     target: str
     requested_by: str
     reason: str | None = None
+    role: str | None = None
+    disabled: bool | None = None
 
     @classmethod
     def parse(cls, data: dict[str, Any]) -> "AdminAction":
         kind, target, sender, reason = data.get("type"), data.get("target"), data.get("requestedBy"), data.get("reason")
-        if kind not in ANALYSIS_ACTIONS:
+        if kind not in ANALYSIS_ACTIONS + USER_ACTIONS:
             raise ActionError("This action is not supported by the backend.")
-        if not isinstance(sender, str) or not 1 <= len(sender) <= 128 or "/" in sender:
+        if not _is_uid(sender):
             raise ActionError("Invalid requester.")
-        if not isinstance(target, str) or not _ANALYSIS_ID.match(target):
-            raise ActionError("Invalid analysis ID.")
         if reason is not None and (not isinstance(reason, str) or len(reason) > 200):
             raise ActionError("The reason must be at most 200 characters.")
-        return cls(kind, target, sender, reason.strip() or None if isinstance(reason, str) else None)
+        reason = reason.strip() or None if isinstance(reason, str) else None
+        if kind in ANALYSIS_ACTIONS:
+            if not isinstance(target, str) or not _ANALYSIS_ID.match(target):
+                raise ActionError("Invalid analysis ID.")
+            return cls(kind, target, sender, reason)
+        if not _is_uid(target):
+            raise ActionError("Invalid user ID.")
+        if target == sender:
+            raise ActionError("Admins cannot change their own role or account.")
+        role, disabled = data.get("role"), data.get("disabled")
+        if kind == SET_ROLE and role not in ("admin", "user"):
+            raise ActionError("The role must be admin or user.")
+        if kind == SET_DISABLED and not isinstance(disabled, bool):
+            raise ActionError("Choose whether to disable or enable the account.")
+        return cls(kind, target, sender, reason, role if kind == SET_ROLE else None, disabled if kind == SET_DISABLED else None)
 
 
 class ActionStore(Protocol):
@@ -73,6 +94,10 @@ class ActionStore(Protocol):
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
     def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None: ...
     def delete_analysis(self, analysis_id: str) -> None: ...
+    def get_user(self, uid: str) -> dict[str, Any] | None: ...
+    def admin_count(self) -> int: ...
+    def set_role(self, uid: str, role: str) -> None: ...
+    def set_disabled(self, uid: str, disabled: bool) -> None: ...
 
 
 class Jobs(Protocol):
@@ -93,6 +118,8 @@ class AdminActionWorker:
             HIDE_ANALYSIS: self._hide_analysis,
             UNHIDE_ANALYSIS: self._unhide_analysis,
             DELETE_ANALYSIS: self._delete_analysis,
+            SET_ROLE: self._set_role,
+            SET_DISABLED: self._set_disabled,
         }
 
     async def tick(self) -> None:
@@ -172,6 +199,32 @@ class AdminActionWorker:
             raise ActionError("Stop this analysis before deleting it.")
         await asyncio.to_thread(self._store.delete_analysis, action.target)
         return "Analysis and its results deleted. Users can request the paper again."
+
+    async def _user(self, action: AdminAction) -> dict[str, Any]:
+        user = await asyncio.to_thread(self._store.get_user, action.target)
+        if user is None:
+            raise ActionError("This user has no Realtron profile.")
+        return user
+
+    async def _set_role(self, action: AdminAction) -> str:
+        user = await self._user(action)
+        current = "admin" if user.get("role") == "admin" else "user"
+        if current == action.role:
+            raise ActionError(f"This user is already {'an admin' if current == 'admin' else 'a regular user'}.")
+        if action.role == "admin" and user.get("disabled") is True:
+            raise ActionError("Enable this account before making it an admin.")
+        if action.role == "user" and await asyncio.to_thread(self._store.admin_count) <= 1:
+            raise ActionError("Realtron needs at least one admin.")
+        await asyncio.to_thread(self._store.set_role, action.target, action.role)
+        return "Admin access granted." if action.role == "admin" else "Admin access removed. The web workspace closes for them at once."
+
+    async def _set_disabled(self, action: AdminAction) -> str:
+        user = await self._user(action)
+        if action.disabled and user.get("role") == "admin":
+            raise ActionError("Remove admin access before disabling this account.")
+        await asyncio.to_thread(self._store.set_disabled, action.target, bool(action.disabled))
+        return ("Account disabled. The user is signed out within an hour and cannot sign in again."
+                if action.disabled else "Account enabled. The user can sign in again.")
 
     async def run(self, stop: asyncio.Event) -> None:
         try:

@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowRight, ArrowUpRight, BarChart3, Bell, BookOpen, Check, FlaskConical, LayoutDashboard, LogOut, Menu, ShieldCheck, X, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BarChart3, Bell, BookOpen, Check, FlaskConical, LayoutDashboard, LogOut, Menu, ShieldCheck, Users as UsersIcon, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { StatePanel } from './components/ui';
 import { Dashboard } from './pages/Dashboard';
 import { AnalysisDetail } from './pages/AnalysisDetail';
 import { Insights } from './pages/Insights';
 import { Notifications } from './pages/Notifications';
+import { Users } from './pages/Users';
+import { UserDetail } from './pages/UserDetail';
 import { SystemIndicator } from './components/SystemIndicator';
 import { useWorkers } from './hooks/useWorkers';
 
@@ -13,6 +15,7 @@ import { useWorkers } from './hooks/useWorkers';
 const sections: { path: string; label: string; icon: LucideIcon }[] = [
   { path: '', label: 'Overview', icon: LayoutDashboard },
   { path: 'insights', label: 'Insights', icon: BarChart3 },
+  { path: 'users', label: 'Users', icon: UsersIcon },
   { path: 'notifications', label: 'Notifications', icon: Bell },
 ];
 import { useAccess } from './hooks/useAccess';
@@ -119,8 +122,8 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
   const location = useLocation();
   const base = demo ? '/demo' : '/';
   const prefix = demo ? '/demo' : '';
-  const detail = location.pathname.includes('/analyses/');
-  const section = sections.find((item) => item.path && location.pathname.endsWith(`/${item.path}`)) ?? sections[0];
+  const detail = location.pathname.includes('/analyses/') ? 'Paper details' : /\/users\/[^/]+$/.test(location.pathname) ? 'User details' : null;
+  const section = sections.find((item) => item.path && new RegExp(`/${item.path}(/|$)`).test(location.pathname)) ?? sections[0];
   async function leave() {
     setSigningOut(true); setFailure('');
     try { await gateway.signOut(); } catch (error) { setFailure(errorMessage(error)); setSigningOut(false); }
@@ -139,7 +142,7 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
         {demo ? <Link to="/" aria-label="Exit demo" className="icon-button"><LogOut size={17} /></Link> : <button aria-label="Sign out" className="icon-button" disabled={signingOut} onClick={leave}><LogOut size={17} /></button>}</div>
     </aside>
     <div className="workspace-body"><header className="workspace-header"><div className="header-left"><button className="icon-button mobile-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
-      <span className="breadcrumb">Workspace<span>/</span><strong>{detail ? 'Paper details' : section.label}</strong></span></div>
+      <span className="breadcrumb">Workspace<span>/</span><strong>{detail ?? section.label}</strong></span></div>
       <div className="header-right"><SystemIndicator system={system} /><span className={`workspace-badge ${demo ? 'demo' : ''}`}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}{demo ? 'Demo workspace' : 'Admin access'}</span></div></header>
       {demo && <div className="demo-banner"><span><FlaskConical size={15} /><strong>Sample data</strong><span className="demo-description">Explore freely. This workspace is separate from Firebase.</span></span><Link to="/">Connect real data<ArrowUpRight size={14} /></Link></div>}
       {failure && <p role="alert" className="form-error workspace-error">{failure}</p>}
@@ -147,6 +150,8 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
         <Route index element={<Dashboard gateway={gateway} demo={demo} system={system} />} />
         <Route path="analyses/:analysisId" element={<AnalysisDetail gateway={gateway} />} />
         <Route path="insights" element={<Insights gateway={gateway} demo={demo} />} />
+        <Route path="users" element={<Users gateway={gateway} demo={demo} />} />
+        <Route path="users/:uid" element={<UserDetail gateway={gateway} selfUid={user.uid} />} />
         <Route path="notifications" element={<Notifications gateway={gateway} demo={demo} system={system} />} />
         <Route path="*" element={<StatePanel title="Page not found"><Link to={base} className="button secondary">Go to overview</Link></StatePanel>} />
       </Routes></main>

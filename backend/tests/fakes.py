@@ -111,6 +111,7 @@ class FakeActionStore(FakeStore):
         self.roles: dict[str, str] = {"admin-1": "admin", UID: "user"}
         self.created: list[tuple[str, str, bool]] = []
         self.deleted: list[str] = []
+        self.disabled: set[str] = set()
 
     def queue(self, action_id: str, **fields: Any) -> None:
         self.actions[action_id] = {"requestedBy": "admin-1", "status": "queued", **fields}
@@ -140,6 +141,18 @@ class FakeActionStore(FakeStore):
     def delete_analysis(self, analysis_id: str) -> None:
         self.deleted.append(analysis_id)
         self.analyses.pop(analysis_id, None)
+
+    def get_user(self, uid: str) -> dict[str, Any] | None:
+        return {"role": self.roles[uid], "disabled": uid in self.disabled} if uid in self.roles else None
+
+    def admin_count(self) -> int:
+        return sum(role == "admin" for role in self.roles.values())
+
+    def set_role(self, uid: str, role: str) -> None:
+        self.roles[uid] = role
+
+    def set_disabled(self, uid: str, disabled: bool) -> None:
+        (self.disabled.add if disabled else self.disabled.discard)(uid)
 
     def is_admin(self, uid: str) -> bool:
         return self.roles.get(uid) == "admin"

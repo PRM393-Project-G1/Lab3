@@ -196,6 +196,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text("You're offline"), findsOneWidget);
 
+      auth.result = SignInResult.disabled;
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      expect(find.text('This account is disabled'), findsOneWidget);
+      expect(
+        find.textContaining('An administrator disabled it'),
+        findsOneWidget,
+      );
+
       auth.result = SignInResult.success;
       await tester.tap(find.text('Continue with Google'));
       await tester.pumpAndSettle();

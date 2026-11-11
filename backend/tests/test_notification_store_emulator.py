@@ -17,7 +17,8 @@ def store():
     address = os.environ["FIRESTORE_EMULATOR_HOST"]
     assert address.startswith(("127.0.0.1:", "localhost:")), "This test is local-only"
     db = Client(project="demo-realtron-admin", credentials=AnonymousCredentials())
-    yield FirebaseNotificationStore(db)
+    # Never reach real Firebase Auth from a test.
+    yield FirebaseNotificationStore(db, accounts=lambda: {})
     db.close()
 
 
@@ -29,22 +30,6 @@ def test_transaction_claim_has_exactly_one_owner(store):
     assert sum(value is not None for value in claims) == 1
     assert reference.get().to_dict()["status"] == "processing"
 
-
-def test_directory_projection_never_exposes_device_tokens_and_removes_admins(store):
-    db = store._db
-    user = db.collection("users").document("emulator-directory-user")
-    user.set({"role": "user", "displayName": "User", "fcmTokens": ["private-token"]})
-    store.sync_directory()
-    projection = db.collection("adminUserDirectory").document(user.id)
-    assert set(projection.get().to_dict()) == {"displayName", "hasDevice", "updatedAt"}
-    assert projection.get().to_dict()["hasDevice"] is True
-    user.update({"displayName": 123, "fcmTokens": "malformed-token-list"})
-    store.sync_directory()
-    assert projection.get().to_dict()["displayName"] == "Unnamed user"
-    assert projection.get().to_dict()["hasDevice"] is False
-    user.update({"role": "admin"})
-    store.sync_directory()
-    assert not projection.get().exists
 
 
 def test_inbox_create_is_idempotent_and_does_not_reset_read(store):
@@ -97,3 +82,31 @@ def test_heartbeat_merges_fields_and_stamps_server_time(store):
     assert first["state"] == "running" and isinstance(first["lastSeen"], datetime)
     store.heartbeat("notifications", {"state": "stopped"})
     assert reference.get().to_dict() | {"lastSeen": None} == {"state": "stopped", "version": "test", "lastSeen": None}
+
+
+def test_directory_lists_every_profile_with_auth_fields_but_never_tokens(store):
+    from orchestrator.directory import Account
+    db = store._db
+    created = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    store._accounts = lambda: {"emulator-directory-user": Account("user@example.test", False, created, None)}
+    user = db.collection("users").document("emulator-directory-user")
+    user.set({"role": "user", "displayName": "User", "fcmTokens": ["private-token"]})
+    store.sync_directory()
+    projection = db.collection("adminUserDirectory").document(user.id)
+    data = projection.get().to_dict()
+    assert set(data) == {"displayName", "hasDevice", "role", "email", "disabled", "createdAt", "lastSignInAt", "updatedAt"}
+    assert (data["hasDevice"], data["role"], data["email"], data["disabled"], data["createdAt"]) == (True, "user", "user@example.test", False, created)
+    user.update({"displayName": 123, "fcmTokens": "malformed-token-list", "role": "admin"})
+    store.sync_directory()
+    data = projection.get().to_dict()
+    assert (data["displayName"], data["hasDevice"], data["role"]) == ("Unnamed user", False, "admin")
+
+    def unavailable():
+        raise RuntimeError("Auth is down")
+
+    store._accounts = unavailable
+    store.sync_directory()
+    assert projection.get().to_dict()["email"] == "user@example.test"
+    user.delete()
+    store.sync_directory()
+    assert not projection.get().exists
