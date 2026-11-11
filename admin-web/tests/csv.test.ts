@@ -104,3 +104,22 @@ describe('announcement drafts with a paper link', async () => {
     expect(parseAnnouncement('x', { ...base, analysisId: '1706.03762' }).analysisId).toBe('1706.03762');
   });
 });
+
+describe('scheduled announcement drafts', async () => {
+  const { validateDraft, parseAnnouncement, isScheduled } = await import('../src/domain/notifications');
+  const now = new Date(2026, 10, 12, 9, 0);
+  const base = { title: 'T', body: 'B', audience: 'all' as const, recipientUids: [] };
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60000);
+  it('accepts 5 minutes to 30 days ahead, matching the rules with a margin', () => {
+    expect(validateDraft({ ...base, sendAt: at(4) }, now)).toMatch(/at least 5 minutes/);
+    expect(validateDraft({ ...base, sendAt: at(6) }, now)).toBeNull();
+    expect(validateDraft({ ...base, sendAt: at(30 * 1440) }, now)).toMatch(/30 days/);
+    expect(validateDraft({ ...base, sendAt: new Date('invalid') }, now)).toMatch(/delivery time/);
+  });
+  it('reads the schedule back and tells scheduled from due requests', () => {
+    const request = parseAnnouncement('r', { ...base, status: 'queued', sendAt: at(60) });
+    expect(isScheduled(request, now)).toBe(true);
+    expect(isScheduled(request, at(61))).toBe(false);
+    expect(parseAnnouncement('r', { ...base, status: 'cancelled' }).status).toBe('cancelled');
+  });
+});

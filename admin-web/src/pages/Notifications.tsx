@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Bell, CheckCircle2, Link2, Search, Send, Users, X } from 'lucide-react';
+import { Bell, CalendarClock, CheckCircle2, Link2, Search, Send, Users, X } from 'lucide-react';
 import type { Analysis } from '../domain/analysis';
-import { normalizeDraft, validateDraft, type AnnouncementDraft, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
+import { isScheduled, normalizeDraft, scheduleLimits, validateDraft, type AnnouncementDraft, type AnnouncementRequest, type NotificationRecipient } from '../domain/notifications';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
 import { StatePanel, formatDate } from '../components/ui';
@@ -10,7 +10,12 @@ import type { SystemStatus } from '../hooks/useWorkers';
 
 type LoadState<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T };
 const stateLabels = { queued: 'Queued', processing: 'Processing', completed: 'Completed', partial: 'Needs review',
-  failed: 'Failed', interrupted: 'Interrupted', unknown: 'Unknown' };
+  failed: 'Failed', interrupted: 'Interrupted', cancelled: 'Cancelled', unknown: 'Unknown' };
+/** The value a datetime-local input expects, in the viewer's time zone. */
+function localInput(value: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
 
 export function Notifications({ gateway, demo, system }: { gateway: AdminGateway; demo: boolean; system: SystemStatus }) {
   const [recipients, setRecipients] = useState<LoadState<NotificationRecipient[]>>({ status: 'loading' });
@@ -22,6 +27,8 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [paper, setPaper] = useState('');
+  const [timing, setTiming] = useState<'now' | 'later'>('now');
+  const [when, setWhen] = useState('');
   const [papers, setPapers] = useState<Analysis[]>([]);
   const [problem, setProblem] = useState('');
   const [success, setSuccess] = useState('');
@@ -58,7 +65,9 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
 
   function review(event: FormEvent) {
     event.preventDefault(); setProblem(''); setSuccess('');
-    const draft = normalizeDraft({ title, body, audience, recipientUids: selected, analysisId: paper });
+    if (timing === 'later' && !when) { setProblem('Choose a delivery time.'); return; }
+    const draft = normalizeDraft({ title, body, audience, recipientUids: selected, analysisId: paper,
+      ...(timing === 'later' ? { sendAt: new Date(when) } : {}) });
     const validation = validateDraft(draft);
     if (validation) { setProblem(validation); return; }
     if (!users.length) { setProblem('No users have been synced yet. Start the backend notification worker first.'); return; }
@@ -75,8 +84,9 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
     if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, id: crypto.randomUUID() };
     try {
       await gateway.queueAnnouncement(operation.current.id, confirmation);
-      setSuccess(demo ? 'Demo message simulated. No notifications were sent.' : 'Request queued. The backend will process it; track the outcome below.');
-      setConfirmation(null); setTitle(''); setBody(''); setSelected([]); setPaper(''); operation.current = null;
+      setSuccess(confirmation.sendAt ? `Message scheduled for ${formatDate(confirmation.sendAt, true)}. You can cancel it below until then.`
+        : demo ? 'Demo message simulated. No notifications were sent.' : 'Request queued. The backend will process it; track the outcome below.');
+      setConfirmation(null); setTitle(''); setBody(''); setSelected([]); setPaper(''); setTiming('now'); setWhen(''); operation.current = null;
     } catch (error) {
       // Keep this operation ID so retry after a lost acknowledgement cannot create a duplicate.
       setProblem(errorMessage(error));
@@ -115,6 +125,15 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
         <label className="form-label" htmlFor="notification-paper">Link to a paper<span>Optional · tapping opens its overview</span></label>
         <select className="form-input" id="notification-paper" value={paper} onChange={(event) => setPaper(event.target.value)}>
           <option value="">No link</option>{linkable.map((item) => <option key={item.id} value={item.id}>{item.title} · arXiv:{item.id}</option>)}</select>
+        <fieldset className="audience-options timing-options"><legend>Delivery</legend>
+          <label className={timing === 'now' ? 'selected' : ''}><input type="radio" name="timing" value="now" checked={timing === 'now'} onChange={() => setTiming('now')} /><span><strong>Send now</strong><small>As soon as the worker picks it up</small></span></label>
+          <label className={timing === 'later' ? 'selected' : ''}><input type="radio" name="timing" value="later" checked={timing === 'later'} onChange={() => {
+            setTiming('later'); if (!when) setWhen(localInput(new Date(Date.now() + 3600000)));
+          }} /><span><strong>Schedule</strong><small>Up to {scheduleLimits.maxDays} days ahead</small></span></label>
+        </fieldset>
+        {timing === 'later' && <><label className="form-label" htmlFor="notification-when">Deliver at<span>Your local time</span></label>
+          {/* Bounds are checked on review, with one message, rather than by the browser. */}
+          <input className="form-input" id="notification-when" type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} /></>}
         <div className="compose-footer"><span>{demo ? 'Demo mode · no real messages' : 'Queued securely for the backend worker'}</span><button className="button primary" disabled={sending || recipients.status !== 'ready'} type="submit"><Send size={15} />Review message</button></div>
       </form>
     </section><aside className="notification-preview"><div className="eyebrow">MESSAGE PREVIEW</div><div className="preview-card"><span className="preview-app"><BookIcon />Realtron<span>now</span></span>
@@ -124,32 +143,50 @@ export function Notifications({ gateway, demo, system }: { gateway: AdminGateway
     </aside></div>
     <section className="analyses-panel announcement-history"><div className="panel-heading"><div className="panel-title"><Bell size={19} /><h2>Recent announcements</h2></div><span className="panel-caption">Last 30 requests</span></div>
       {history.status === 'loading' ? <p role="status" className="history-placeholder">Loading history…</p> : history.status === 'error' ? <StatePanel title="Couldn’t load announcement history" retry={() => setRetry((value) => value + 1)}>{history.message}</StatePanel>
-        : history.data.length ? history.data.map((item) => <HistoryItem request={item} key={item.id} paperTitle={titleOf(item.analysisId)} />) : <div className="empty-state"><Bell size={26} /><h3>No announcements yet</h3><p>Your submitted messages and processing outcomes will appear here.</p></div>}
+        : history.data.length ? history.data.map((item) => <HistoryItem request={item} key={item.id} paperTitle={titleOf(item.analysisId)} gateway={gateway} />) : <div className="empty-state"><Bell size={26} /><h3>No announcements yet</h3><p>Your submitted messages and processing outcomes will appear here.</p></div>}
     </section>
     <dialog ref={dialog} className="send-dialog" aria-labelledby="send-dialog-title" onCancel={(event) => { if (sending) event.preventDefault(); else setConfirmation(null); }}>
       {confirmation && <><div className="dialog-heading"><h2 id="send-dialog-title">Confirm announcement</h2><button className="icon-button" aria-label="Close confirmation" disabled={sending} onClick={() => setConfirmation(null)}><X size={19} /></button></div>
         <p>{confirmation.audience === 'all' ? `Send to all users (${users.length} currently listed)?` : `Send to ${confirmation.recipientUids.length} selected user${confirmation.recipientUids.length === 1 ? '' : 's'}?`}</p>
+        {confirmation.sendAt && <p className="schedule-note"><CalendarClock size={15} />Delivered at {formatDate(confirmation.sendAt, true)}. Until then you can cancel it.</p>}
         {confirmation.audience === 'selected' && <p className="muted">{users.filter((user) => confirmation.recipientUids.includes(user.uid)).map((user) => user.name).join(', ')}</p>}
         <div className="confirmation-message"><strong>{confirmation.title}</strong><p>{confirmation.body}</p>{confirmation.analysisId && <p className="muted">Tapping it opens {titleOf(confirmation.analysisId)}.</p>}</div>
         <p className="preview-note">{demo ? 'Demo only: no notifications will be sent to real users.' : 'The request cannot be edited after submission. Push availability depends on the recipient’s device.'}</p>
         {problem && <p role="alert" className="form-error">{problem}</p>}
-        <div className="dialog-actions"><button className="button secondary" disabled={sending} onClick={() => setConfirmation(null)}>Cancel</button><button className="button primary" disabled={sending} onClick={send}>{sending ? 'Submitting…' : 'Confirm send'}</button></div></>}
+        <div className="dialog-actions"><button className="button secondary" disabled={sending} onClick={() => setConfirmation(null)}>Cancel</button><button className="button primary" disabled={sending} onClick={send}>{sending ? 'Submitting…' : confirmation.sendAt ? 'Schedule message' : 'Confirm send'}</button></div></>}
     </dialog>
   </>;
 }
 
 function BookIcon() { return <Bell size={14} />; }
 
-function HistoryItem({ request, paperTitle }: { request: AnnouncementRequest; paperTitle: string }) {
+function HistoryItem({ request, paperTitle, gateway }: { request: AnnouncementRequest; paperTitle: string; gateway: AdminGateway }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState('');
   const pending = request.status === 'queued' || request.status === 'processing';
+  const scheduled = isScheduled(request);
   const counts = request.counts;
+  async function cancel() {
+    setBusy(true); setFailure('');
+    try { await gateway.cancelAnnouncement(request.id); setConfirming(false); }
+    catch (error) { setFailure(errorMessage(error)); }
+    finally { setBusy(false); }
+  }
   return <article className="announcement-item"><div className="announcement-heading"><div><h3>{request.title}</h3><span>{request.audience === 'all' ? 'All users' : `${request.recipientUids.length} selected user${request.recipientUids.length === 1 ? '' : 's'}`} · {formatDate(request.createdAt, true)}</span></div>
-    <span className={`announcement-state announcement-${request.status}`}>{stateLabels[request.status]}</span></div><p className="announcement-body">{request.body}</p>
+    <span className={`announcement-state announcement-${scheduled ? 'scheduled' : request.status}`}>{scheduled ? 'Scheduled' : stateLabels[request.status]}</span></div><p className="announcement-body">{request.body}</p>
     {request.analysisId && <p className="announcement-link"><Link2 size={13} />Opens {paperTitle}</p>}
-    {pending ? <p className="announcement-waiting">{request.status === 'queued' ? 'Waiting for the backend worker.' : `${counts.inboxStored} of ${counts.recipients} inbox items stored. Processing…`}</p>
+    {request.status === 'cancelled' ? <p className="announcement-waiting">Cancelled before sending. No one received it.</p>
+      : pending ? <p className="announcement-waiting">{scheduled ? <><CalendarClock size={13} />Scheduled for {formatDate(request.sendAt ?? null, true)}. You can cancel it until then.</>
+        : request.status === 'queued' ? 'Waiting for the backend worker.' : `${counts.inboxStored} of ${counts.recipients} inbox items stored. Processing…`}</p>
       : <dl className="delivery-counts">{[['Users', counts.recipients], ['Inbox stored', counts.inboxStored], ['FCM accepted · devices', counts.pushAccepted],
         ['Push failed', counts.pushFailed], ['Push uncertain', counts.pushUnknown], ['Without device', counts.withoutDevice], ['Skipped users', counts.skipped], ['Inbox failed', counts.inboxFailed]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+    {request.status === 'queued' && (confirming ? <div className="cancel-confirm"><span>Cancel this message? Nobody will receive it.</span>
+      <button className="button secondary" disabled={busy} onClick={() => setConfirming(false)}>Keep it</button>
+      <button className="button danger" disabled={busy} onClick={cancel}>{busy ? 'Cancelling…' : 'Cancel message'}</button></div>
+      : <button className="plain-button cancel-link" onClick={() => setConfirming(true)}>Cancel this message</button>)}
+    {failure && <p role="alert" className="form-error">{failure}</p>}
     {request.error && <p className="announcement-error">{request.error}</p>}
-    {!pending && <p className="delivery-footnote">FCM acceptance is not confirmation that a device displayed or read the notification.</p>}
+    {!pending && request.status !== 'cancelled' && <p className="delivery-footnote">FCM acceptance is not confirmation that a device displayed or read the notification.</p>}
   </article>;
 }

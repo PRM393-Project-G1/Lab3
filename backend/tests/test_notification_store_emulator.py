@@ -118,3 +118,17 @@ def test_a_linked_paper_is_stored_in_the_inbox_item(store):
     store.store_inbox("emulator-link-user", "emulator-link-request-12345", announcement)
     item = store._db.document("users/emulator-link-user/notifications/admin-emulator-link-request-12345").get().to_dict()
     assert item["analysisId"] == "1706.03762" and item["type"] == "admin_message"
+
+
+def test_scheduled_requests_wait_until_due_and_cancelled_ones_never_run(store):
+    now = datetime.now(timezone.utc)
+    requests = store._db.collection("adminNotificationRequests")
+    requests.document("emulator-scheduled-future-1").set({"status": "queued", "sendAt": now + timedelta(hours=1)})
+    requests.document("emulator-scheduled-due-0001").set({"status": "queued", "sendAt": now - timedelta(minutes=1)})
+    requests.document("emulator-scheduled-cancelled").set({"status": "cancelled", "sendAt": now - timedelta(minutes=1)})
+    queued = store.queued_ids()
+    assert "emulator-scheduled-due-0001" in queued
+    assert "emulator-scheduled-future-1" not in queued and "emulator-scheduled-cancelled" not in queued
+    assert store.claim("emulator-scheduled-future-1", "worker") is None
+    assert store.claim("emulator-scheduled-cancelled", "worker") is None
+    assert store.claim("emulator-scheduled-due-0001", "worker") is not None

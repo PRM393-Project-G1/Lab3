@@ -62,8 +62,13 @@ service cloud.firestore {
       allow create: if isAdmin()
         && requestId.matches('^[A-Za-z0-9_-]{20,80}$')
         && request.resource.data.keys().hasOnly([
-          'title', 'body', 'audience', 'recipientUids', 'requestedBy', 'createdAt', 'status', 'analysisId'
+          'title', 'body', 'audience', 'recipientUids', 'requestedBy', 'createdAt', 'status', 'analysisId', 'sendAt'
         ])
+        // A scheduled send is due between now and 30 days from now.
+        && (!('sendAt' in request.resource.data)
+          || (request.resource.data.sendAt is timestamp
+            && request.resource.data.sendAt > request.time
+            && request.resource.data.sendAt < request.time + duration.value(30, 'd')))
         && (!('analysisId' in request.resource.data)
           || (request.resource.data.analysisId is string && request.resource.data.analysisId.matches('^[0-9]{4}[.][0-9]{4,5}$')))
         && request.resource.data.requestedBy == request.auth.uid
@@ -79,7 +84,15 @@ service cloud.firestore {
         && ((request.resource.data.audience == 'all' && request.resource.data.recipientUids.size() == 0)
           || (request.resource.data.audience == 'selected' && request.resource.data.recipientUids.size() > 0));
       // Submitted content and delivery outcomes cannot be rewritten by a client.
-      allow update, delete: if false;
+      // The one change allowed is cancelling a request the worker has not claimed;
+      // the worker's claim transaction re-reads the status, so it never runs both.
+      allow update: if isAdmin()
+        && resource.data.status == 'queued'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledBy', 'cancelledAt'])
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.cancelledAt == request.time;
+      allow delete: if false;
     }
 
     match /users/{uid} {

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -28,6 +28,10 @@ class FakeGateway implements AdminGateway {
   watchAnnouncements = vi.fn<AdminGateway['watchAnnouncements']>((next) => { this.announcementNext = next; queueMicrotask(() => next(this.announcements)); return () => {}; });
   queueAnnouncement = vi.fn<AdminGateway['queueAnnouncement']>(async (id, draft) => {
     this.announcements = [parseAnnouncement(id, { ...draft, status: 'queued', requestedBy: 'admin', createdAt: new Date() }), ...this.announcements];
+    this.announcementNext?.(this.announcements);
+  });
+  cancelAnnouncement = vi.fn<AdminGateway['cancelAnnouncement']>(async (id) => {
+    this.announcements = this.announcements.map((item) => item.id === id ? { ...item, status: 'cancelled' } : item);
     this.announcementNext?.(this.announcements);
   });
   user: AdminUser | null = { uid: 'admin', name: 'Test admin', email: 'admin@example.test' };
@@ -447,5 +451,42 @@ describe('announcement links', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm send' }));
     expect(gateway.queueAnnouncement.mock.calls[0][1]).toEqual({ title: 'New results', body: 'Take a look at this paper.', audience: 'all', recipientUids: [], analysisId: '1706.03762' });
     expect(await screen.findAllByText('Opens Attention Is All You Need')).not.toHaveLength(0);
+  });
+});
+
+describe('scheduled announcements', () => {
+  const local = (value: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+  };
+  async function compose(gateway: FakeGateway, minutesAhead: number) {
+    open(gateway, '/notifications');
+    await screen.findByText('User A');
+    await userEvent.type(screen.getByRole('textbox', { name: /^Title/ }), 'Maintenance tonight');
+    await userEvent.type(screen.getByRole('textbox', { name: /^Message/ }), 'The service pauses for an hour.');
+    await userEvent.click(screen.getByRole('radio', { name: /All users/ }));
+    await userEvent.click(screen.getByRole('radio', { name: /Schedule/ }));
+    fireEvent.change(screen.getByLabelText(/Deliver at/), { target: { value: local(new Date(Date.now() + minutesAhead * 60000)) } });
+    await userEvent.click(screen.getByRole('button', { name: 'Review message' }));
+  }
+
+  it('schedules a message, shows it as scheduled and lets the admin cancel it', async () => {
+    const gateway = new FakeGateway(); await compose(gateway, 180);
+    expect(screen.getByText(/Delivered at .* Until then you can cancel it/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Schedule message' }));
+    const sent = gateway.queueAnnouncement.mock.calls[0][1];
+    expect(sent.sendAt).toBeInstanceOf(Date);
+    expect(sent.sendAt!.getTime() - Date.now()).toBeGreaterThan(170 * 60000);
+    expect(await screen.findByText('Scheduled')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel this message' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel message' }));
+    expect(gateway.cancelAnnouncement).toHaveBeenCalledWith(gateway.queueAnnouncement.mock.calls[0][0]);
+    expect(await screen.findByText('Cancelled before sending. No one received it.')).toBeInTheDocument();
+  });
+
+  it('refuses a time too close to now before anything is queued', async () => {
+    const gateway = new FakeGateway(); await compose(gateway, 2);
+    expect(screen.getByRole('alert')).toHaveTextContent('Schedule at least 5 minutes ahead');
+    expect(gateway.queueAnnouncement).not.toHaveBeenCalled();
   });
 });

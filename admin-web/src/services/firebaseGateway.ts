@@ -1,8 +1,8 @@
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, getFirestore, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, getFirestore, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { fetchAndActivate, getRemoteConfig, getValue, isSupported } from 'firebase/remote-config';
-import { parseAnalysis, parseReference, parseTopic, type WeakRule } from '../domain/analysis';
+import { date, parseAnalysis, parseReference, parseTopic, type WeakRule } from '../domain/analysis';
 import type { AdminGateway } from './gateway';
 import { invalidWebAppId, missingConfig, requiredConfig } from './firebaseConfig';
 import { normalizeDraft, parseAnnouncement, validateDraft } from '../domain/notifications';
@@ -86,13 +86,20 @@ export function getFirebaseGateway(): AdminGateway {
         const existing = await transaction.get(reference);
         if (existing.exists()) {
           const data = existing.data();
-          if (data.requestedBy !== uid || JSON.stringify(normalizeDraft(data as typeof draft)) !== JSON.stringify(draft)) {
+          const stored = normalizeDraft({ ...data, sendAt: date(data.sendAt) ?? undefined } as typeof draft);
+          if (data.requestedBy !== uid || JSON.stringify(stored) !== JSON.stringify(draft)) {
             throw new Error('This request ID belongs to a different message.');
           }
           return;
         }
         transaction.set(reference, { ...draft, requestedBy: uid, status: 'queued', createdAt: serverTimestamp() });
       }, { maxAttempts: 3 });
+    },
+    async cancelAnnouncement(id) {
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw Object.assign(new Error('Sign in first.'), { code: 'auth/user-signed-out' });
+      // Rules accept this only while the request is still queued.
+      await updateDoc(doc(db, 'adminNotificationRequests', id), { status: 'cancelled', cancelledBy: uid, cancelledAt: serverTimestamp() });
     },
     watchAnalyses: (next, error) => onSnapshot(collection(db, 'analyses'), { includeMetadataChanges: true }, (snapshot) => {
       next({ analyses: snapshot.docs.map((item) => parseAnalysis(item.id, item.data())),

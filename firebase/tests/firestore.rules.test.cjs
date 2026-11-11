@@ -194,3 +194,23 @@ test('admins queue role and account changes for others, never for themselves', a
   }
   await assertFails(setDoc(doc(user, 'adminActions/rules-user-self-promotion-1234'), change({ requestedBy: 'user', target: 'other' })));
 });
+
+test('scheduled sends stay within 30 days and only queued requests can be cancelled', async () => {
+  const soon = new Date(Date.now() + 3600000);
+  await assertSucceeds(setDoc(doc(admin, 'adminNotificationRequests/rules-scheduled-request-1234'), announcement({ sendAt: soon })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-past-schedule-request-12'), announcement({ sendAt: new Date(Date.now() - 60000) })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-far-schedule-request-123'), announcement({ sendAt: new Date(Date.now() + 31 * 86400000) })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-text-schedule-request-12'), announcement({ sendAt: 'tomorrow' })));
+  const path = 'adminNotificationRequests/rules-scheduled-request-1234';
+  const cancel = { status: 'cancelled', cancelledBy: 'admin', cancelledAt: serverTimestamp() };
+  await assertFails(updateDoc(doc(user, path), { ...cancel, cancelledBy: 'user' }));
+  await assertFails(updateDoc(doc(admin, path), { ...cancel, cancelledBy: 'someone-else' }));
+  await assertFails(updateDoc(doc(admin, path), { ...cancel, title: 'Changed' }));
+  await assertFails(updateDoc(doc(admin, path), { status: 'completed' }));
+  await assertSucceeds(updateDoc(doc(admin, path), cancel));
+  await assertFails(updateDoc(doc(admin, path), { status: 'queued' }));
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'adminNotificationRequests/rules-processing-request-1234'), announcement({ status: 'processing', createdAt: new Date() }));
+  });
+  await assertFails(updateDoc(doc(admin, 'adminNotificationRequests/rules-processing-request-1234'), cancel));
+});

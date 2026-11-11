@@ -206,11 +206,23 @@ export const demoGateway: AdminGateway = {
   watchUsers(next) { userObservers.add(next); next([...demoUsers]); return () => { userObservers.delete(next); }; },
   watchRecipients(next) { recipientObservers.add(next); next(recipients()); return () => { recipientObservers.delete(next); }; },
   watchAnnouncements(next) { announcementObservers.add(next); next([...announcements]); return () => { announcementObservers.delete(next); }; },
+  async cancelAnnouncement(id) {
+    const index = announcements.findIndex((item) => item.id === id);
+    if (index < 0 || announcements[index].status !== 'queued') throw Object.assign(new Error('Only queued messages can be cancelled.'), { code: 'permission-denied' });
+    announcements[index] = { ...announcements[index], status: 'cancelled' };
+    announcementObservers.forEach((next) => next([...announcements]));
+  },
   async queueAnnouncement(id, raw) {
     if (announcements.some((item) => item.id === id)) return;
     const draft = normalizeDraft(raw);
     const targets = draft.audience === 'all' ? recipients() : recipients().filter((user) => draft.recipientUids.includes(user.uid));
     const withDevice = targets.filter((user) => user.hasDevice).length;
+    if (draft.sendAt) {
+      // Scheduled sample messages stay queued; the demo has no worker to deliver them.
+      announcements.unshift(parseAnnouncement(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'queued' }));
+      announcementObservers.forEach((next) => next([...announcements]));
+      return;
+    }
     announcements.unshift(parseAnnouncement(id, { ...draft, requestedBy: 'demo-admin', createdAt: new Date(), status: 'completed',
       counts: { recipients: targets.length, inboxStored: targets.length, pushAccepted: withDevice, withoutDevice: targets.length - withDevice } }));
     announcementObservers.forEach((next) => next([...announcements]));

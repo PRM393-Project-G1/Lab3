@@ -19,6 +19,12 @@ from .notification_worker import ADMIN_MESSAGE, DIRECTORY, REQUESTS, Announcemen
 logger = logging.getLogger(__name__)
 
 
+def _send_at(data: dict[str, Any]) -> datetime | None:
+    """When a scheduled request is due. A malformed value never blocks a request."""
+    value = data.get("sendAt")
+    return value if isinstance(value, datetime) else None
+
+
 def list_accounts() -> dict[str, Account]:
     return {record.uid: Account.from_record(record) for record in auth.list_users().iterate_all()}
 
@@ -55,7 +61,14 @@ class FirebaseNotificationStore:
         return self._db.collection(REQUESTS).document(request_id)
 
     def queued_ids(self) -> list[str]:
-        return [item.id for item in self._db.collection(REQUESTS).where(filter=FieldFilter("status", "==", "queued")).limit(10).stream()]
+        # Scheduled requests wait in the queue; few are queued at once, so filter here
+        # instead of keeping a composite index. Due requests go oldest first.
+        now = datetime.now(timezone.utc)
+        query = self._db.collection(REQUESTS).where(filter=FieldFilter("status", "==", "queued")).limit(50)
+        due = [(item.id, _send_at(item.to_dict() or {})) for item in query.stream()]
+        due = [(request_id, when) for request_id, when in due if when is None or when <= now]
+        due.sort(key=lambda pair: pair[1] or datetime.min.replace(tzinfo=timezone.utc))
+        return [request_id for request_id, _ in due[:10]]
 
     def claim(self, request_id: str, owner: str) -> dict[str, Any] | None:
         reference = self._request(request_id)
@@ -64,6 +77,9 @@ class FirebaseNotificationStore:
         def claim(transaction):
             data = reference.get(transaction=transaction).to_dict() or {}
             if data.get("status") != "queued":
+                return None
+            when = _send_at(data)
+            if when is not None and when > datetime.now(timezone.utc):
                 return None
             transaction.update(reference, {"status": "processing", "workerId": owner,
                 "startedAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP})

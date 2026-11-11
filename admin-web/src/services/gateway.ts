@@ -25,6 +25,8 @@ export interface AdminGateway {
   watchRecipients(next: (users: NotificationRecipient[]) => void, error: (error: unknown) => void): Unsubscribe;
   watchAnnouncements(next: (requests: AnnouncementRequest[]) => void, error: (error: unknown) => void): Unsubscribe;
   queueAnnouncement(id: string, draft: AnnouncementDraft): Promise<void>;
+  /** Cancels a request the worker has not claimed yet, such as a scheduled one. */
+  cancelAnnouncement(id: string): Promise<void>;
 }
 
 export function errorMessage(error: unknown): string {
