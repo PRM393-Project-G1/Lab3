@@ -9,11 +9,16 @@ import { BarList, ColumnChart, SegmentedBar } from '../components/charts';
 
 type FeedState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; feed: AnalysisFeed };
 
-/** Validated as a set for adjacent-pair color-vision separation; legend, labels and table carry identity too. */
+/**
+ * Validated in this order for adjacent-pair color-vision separation (worst CVD ΔE 13.7) and the
+ * normal-vision floor; Unverified stays deliberately gray. Warning and Unverified sit below 3:1
+ * on white, so the legend, in-bar labels and table view carry identity too.
+ * Keep in sync with the --ref-* tokens in styles.css.
+ */
 export const referenceColors: Record<ReferenceStatus, { label: string; color: string; darkText?: boolean }> = {
-  hallucinated: { label: 'Hallucinated', color: '#6250d6' }, error: { label: 'Error', color: '#d03b3b' },
-  warning: { label: 'Warning', color: '#fab219', darkText: true }, unverified: { label: 'Unverified', color: '#a9b1bf', darkText: true },
-  verified: { label: 'Verified', color: '#0ca30c' },
+  hallucinated: { label: 'Hallucinated', color: '#7c3aed' }, error: { label: 'Error', color: '#dc2626' },
+  warning: { label: 'Warning', color: '#f59e0b', darkText: true }, unverified: { label: 'Unverified', color: '#94a3b8', darkText: true },
+  verified: { label: 'Verified', color: '#16a34a' },
 };
 const defaultWeakRule: WeakRule = { threshold: 0.5, minRefs: 3 };
 const dayFormat = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' });
@@ -51,7 +56,7 @@ export function Insights({ gateway, demo }: { gateway: AdminGateway; demo: boole
           className={`filter-button ${range === item.value ? 'selected' : ''}`} aria-pressed={range === item.value} onClick={() => setRange(item.value)}>{item.label}</button>)}</div>
         {!demo && state.feed.fromCache && <div className="notice">Showing cached data. Live updates will resume when the connection is restored.</div>}
         <div className="metrics">
-          <Metric title="Analyses requested" value={scoped.length.toLocaleString('en')} note={`${result.outcome.running} still running`} icon={<FileText size={18} />} tone="navy" />
+          <Metric title="Analyses requested" value={scoped.length.toLocaleString('en')} note={`${result.outcome.running} still running`} icon={<FileText size={18} />} tone="accent" />
           <Metric title="Success rate" value={formatPercent(result.outcome.successRate)} icon={<TrendingUp size={18} />} tone="green"
             note={result.outcome.finished ? `${result.outcome.done} of ${result.outcome.finished} finished analyses` : 'No finished analyses yet'} />
           <Metric title="Fabricated references" value={formatPercent(result.references.fabricatedRate, 1)} icon={<ShieldAlert size={18} />} tone="red"

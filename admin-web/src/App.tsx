@@ -133,19 +133,18 @@ function Workspace({ gateway, user, demo }: { gateway: AdminGateway; user: Admin
   return <div className="workspace"><a className="skip-link" href="#main-content">Skip to content</a>
     {menuOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
     <aside id="workspace-navigation" className={`sidebar ${menuOpen ? 'open' : ''}`}><Link to={base} className="brand-link" aria-label="Realtron overview" onClick={() => setMenuOpen(false)}><Brand /></Link>
-      <span className="workspace-label">ADMIN WORKSPACE</span><div className="nav-caption">WORKSPACE</div>
+      <span className="workspace-label">Admin workspace</span><div className="nav-caption">Menu</div>
       <nav aria-label="Main navigation">{sections.map(({ path, label, icon: Icon }) => {
         const current = section.path === path;
         return <Link key={label} to={path ? `${prefix}/${path}` : base} aria-current={current && !detail ? 'page' : undefined} className={`nav-link ${current ? 'active' : ''}`}
-          onClick={() => setMenuOpen(false)}><Icon size={18} />{label}{current && <span className="nav-dot" />}</Link>;
+          onClick={() => setMenuOpen(false)}><Icon size={18} />{label}</Link>;
       })}</nav>
-      <div className="sidebar-context"><span className="sidebar-context-icon"><BookOpen size={19} /></span><h3>A clearer perspective.</h3><p>Follow the papers.<br />Understand the references.</p></div>
       <div className="sidebar-footer"><span className="avatar">{user.name[0]?.toUpperCase() || 'A'}</span><div><strong>{demo ? 'Demo workspace' : user.name}</strong><span>Administrator</span></div>
         {demo ? <Link to="/" aria-label="Exit demo" className="icon-button"><LogOut size={17} /></Link> : <button aria-label="Sign out" className="icon-button" disabled={signingOut} onClick={leave}><LogOut size={17} /></button>}</div>
     </aside>
     <div className="workspace-body"><header className="workspace-header"><div className="header-left"><button className="icon-button mobile-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
       <span className="breadcrumb">Workspace<span>/</span><strong>{detail ?? section.label}</strong></span></div>
-      <div className="header-right"><SystemIndicator system={system} /><span className={`workspace-badge ${demo ? 'demo' : ''}`}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}{demo ? 'Demo workspace' : 'Admin access'}</span></div></header>
+      <div className="header-right"><SystemIndicator system={system} /><span className={`workspace-badge ${demo ? 'demo' : ''}`} title={demo ? 'Demo workspace' : 'Admin access'}>{demo ? <FlaskConical size={14} /> : <ShieldCheck size={14} />}<span className="badge-label">{demo ? 'Demo workspace' : 'Admin access'}</span></span></div></header>
       {demo && <div className="demo-banner"><span><FlaskConical size={15} /><strong>Sample data</strong><span className="demo-description">Explore freely. This workspace is separate from Firebase.</span></span><Link to="/">Connect real data<ArrowUpRight size={14} /></Link></div>}
       {failure && <p role="alert" className="form-error workspace-error">{failure}</p>}
       <main className="main-content" id="main-content" tabIndex={-1}><Routes>

@@ -1,6 +1,22 @@
 import { AlertCircle, CheckCircle2, Clock3, HelpCircle, LoaderCircle, XCircle, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { statusLabel, type AnalysisStatus, type ReferenceStatus } from '../domain/analysis';
+
+/**
+ * A pointer click anywhere on a table row follows the row's link. Keyboard and
+ * screen-reader users keep the real link inside the row; clicks on controls,
+ * modified clicks and text selection are left alone.
+ */
+export function useRowLink() {
+  const navigate = useNavigate();
+  return (to: string) => (event: MouseEvent<HTMLElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, summary')) return;
+    if (window.getSelection()?.toString()) return;
+    navigate(to);
+  };
+}
 
 const statusIcons: Record<AnalysisStatus, LucideIcon> = {
   done: CheckCircle2, queued: Clock3, processing: LoaderCircle,

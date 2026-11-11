@@ -55,6 +55,8 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
         <a href={`https://arxiv.org/abs/${encodeURIComponent(analysis.id)}`} target="_blank" rel="noopener noreferrer">Open on arXiv<ArrowUpRight size={15} /></a></div>
     </div>
     {analysis.hidden && <div className="hidden-banner" role="status"><EyeOff size={16} /><span><strong>Hidden from users.</strong> {analysis.hiddenReason ? `Reason: ${analysis.hiddenReason}. ` : ''}Their app shows these results as removed by an administrator.</span></div>}
+    {/* Actions sit above the results so they are reachable without scrolling past every reference. */}
+    <AnalysisActions gateway={gateway} analysis={analysis} onSettled={reload} />
     {analysis.status !== 'done' ? <section className="detail-panel"><h2>Analysis status</h2>
       {analysis.status === 'processing' ? <><p>{labels[analysis.stage] || 'Processing paper'} · {analysis.progress}%</p><progress max={100} value={analysis.progress} aria-label="Analysis progress" /></>
         : <p>{analysis.status === 'queued' ? 'This paper is waiting for a processing slot.' : analysis.status === 'cancelled' ? 'This analysis was stopped.'
@@ -81,7 +83,6 @@ export function AnalysisDetail({ gateway }: { gateway: AdminGateway }) {
         </details>)}</div> : <p>No references match this status.</p>}
       </section>}
     </>}
-    <AnalysisActions gateway={gateway} analysis={analysis} onSettled={reload} />
   </>;
 }
 

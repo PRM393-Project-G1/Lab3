@@ -6,7 +6,7 @@ import { activityByUser, filterUsers, type DirectoryUser, type UserFilter } from
 import { timeAgo } from '../domain/workers';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
-import { StatePanel } from '../components/ui';
+import { StatePanel, useRowLink } from '../components/ui';
 import { useCompactLayout } from '../hooks/useCompactLayout';
 
 type Load<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T };
@@ -23,6 +23,7 @@ export function RoleBadge({ user }: { user: DirectoryUser }) {
 /** Directory of every profile with its role, account state and analysis activity. */
 export function Users({ gateway, demo }: { gateway: AdminGateway; demo: boolean }) {
   const compact = useCompactLayout();
+  const rowLink = useRowLink();
   const [users, setUsers] = useState<Load<DirectoryUser[]>>({ status: 'loading' });
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [retry, setRetry] = useState(0);
@@ -56,7 +57,7 @@ export function Users({ gateway, demo }: { gateway: AdminGateway; demo: boolean 
     {users.status === 'loading' ? <StatePanel title="Loading users" loading />
       : users.status === 'error' ? <StatePanel title="Couldn’t load users" retry={() => setRetry((value) => value + 1)}>{users.message}</StatePanel> : <>
         <div className="metrics">{[
-          { title: 'People', value: counts.all, note: 'Profiles in the directory', icon: UsersIcon, tone: 'navy' },
+          { title: 'People', value: counts.all, note: 'Profiles in the directory', icon: UsersIcon, tone: 'accent' },
           { title: 'Admins', value: counts.admin, note: 'Can open this workspace', icon: ShieldCheck, tone: 'green' },
           { title: 'Disabled', value: counts.disabled, note: 'Cannot sign in', icon: Ban, tone: 'red' },
           { title: 'With push', value: all.filter((u) => u.hasDevice).length, note: 'A registered device', icon: Smartphone, tone: 'amber' },
@@ -80,7 +81,7 @@ export function Users({ gateway, demo }: { gateway: AdminGateway; demo: boolean 
             </article>)}</div>
               : <div className="table-scroll"><table><thead><tr><th scope="col" className="paper-column">USER</th><th scope="col">ROLE</th>
                 <th scope="col">ACTIVITY</th><th scope="col">LAST SIGN-IN</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead>
-                <tbody>{visible.map((user) => <tr key={user.uid}>
+                <tbody>{visible.map((user) => <tr key={user.uid} className="clickable-row" onClick={rowLink(`${base}/users/${encodeURIComponent(user.uid)}`)}>
                   <td><div className="paper-cell"><span className="paper-icon"><UserRound size={19} /></span><div>
                     <Link to={`${base}/users/${encodeURIComponent(user.uid)}`} className="paper-title">{user.name}</Link>
                     <div className="paper-subtitle"><span>{user.email ?? 'No email on record'}</span>{user.hasDevice && <><span aria-hidden="true">·</span><span>Push device</span></>}</div>

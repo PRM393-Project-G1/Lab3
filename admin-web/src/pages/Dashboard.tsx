@@ -5,7 +5,7 @@ import { filterAnalyses, formatMinutes, isRunning, stalledFor, summarize, type A
 import { analysesCsv, downloadCsv } from '../domain/csv';
 import type { AdminGateway } from '../services/gateway';
 import { errorMessage } from '../services/gateway';
-import { StatePanel, StatusBadge, formatDate } from '../components/ui';
+import { StatePanel, StatusBadge, formatDate, useRowLink } from '../components/ui';
 import { useCompactLayout } from '../hooks/useCompactLayout';
 import type { SystemStatus } from '../hooks/useWorkers';
 import { WorkerNotice } from '../components/SystemIndicator';
@@ -20,6 +20,7 @@ type FeedState = { status: 'loading' } | { status: 'error'; message: string } | 
 
 export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; demo: boolean; system: SystemStatus }) {
   const compact = useCompactLayout();
+  const rowLink = useRowLink();
   const [state, setState] = useState<FeedState>({ status: 'loading' });
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState('');
@@ -60,7 +61,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
   const clear = () => { setQuery(''); setFilter('all'); setRequester(''); setMode('all'); setPage(1); };
   const exportCsv = () => downloadCsv(`realtron-analyses-${new Date().toISOString().slice(0, 10)}.csv`, analysesCsv(visible, nameOf));
   const metrics = [
-    { title: 'Total analyses', value: summary.total, icon: FileText, note: 'Across the workspace', tone: 'navy' },
+    { title: 'Total analyses', value: summary.total, icon: FileText, note: 'Across the workspace', tone: 'accent' },
     { title: 'Completed', value: summary.done, icon: CheckCheck, note: 'Results ready to review', tone: 'green' },
     { title: 'Running', value: summary.running, icon: Clock3, note: 'Queued & processing', tone: 'amber' },
     { title: 'Failed', value: summary.failed, icon: CircleAlert, note: 'Need a closer look', tone: 'red' },
@@ -114,7 +115,7 @@ export function Dashboard({ gateway, demo, system }: { gateway: AdminGateway; de
         </article>)}</div> : <div className="table-scroll"><table><thead><tr>
           <th scope="col" className="paper-column">PAPER</th><th scope="col">STATUS</th><th scope="col">REFERENCES</th>
           <th scope="col"><span className="column-label">REQUESTED <ArrowDown size={12} /></span></th><th scope="col"><span className="sr-only">Action</span></th>
-        </tr></thead><tbody>{rows.map((analysis) => <tr key={analysis.id}>
+        </tr></thead><tbody>{rows.map((analysis) => <tr key={analysis.id} className="clickable-row" onClick={rowLink(`analyses/${encodeURIComponent(analysis.id)}`)}>
           <td><div className="paper-cell"><span className="paper-icon"><FileText size={19} /></span><div>
             <Link to={`analyses/${encodeURIComponent(analysis.id)}`} className="paper-title">{analysis.title}</Link>
             <div className="paper-subtitle"><code>arXiv:{analysis.id}</code><span aria-hidden="true">·</span>
