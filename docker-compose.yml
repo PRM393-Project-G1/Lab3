@@ -1,0 +1,38 @@
+# The whole stack in one command, from the repo root:
+#   docker compose up -d --build
+# Needs, on this machine and outside Git: backend/.env, keys/realtron-service-account.json,
+# tools/saffron-home (Saffron's jars and models), and admin-web/.env.local for the web.
+# Only one backend may run per Firebase project: a backend that starts marks every running
+# analysis as failed. Stop the uvicorn one before starting this.
+name: realtron-grobid
+
+services:
+  grobid:
+    image: lfoppiano/grobid:0.8.2
+    environment:
+      # Without it the JVM fails at start here, because it can't read the cgroup.
+      JAVA_TOOL_OPTIONS: -XX:-UseContainerSupport
+
+  backend:
+    build: ./backend
+    env_file: backend/.env
+    # These replace the Windows paths in backend/.env.
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /keys/realtron-service-account.json
+      GROBID_URL: http://grobid:8070
+      SAFFRON_HOME: /saffron-home
+      SAFFRON_COMMAND: '/opt/java8/bin/java -Xmx3g -cp "/saffron-home/lib/*" org.insightcentre.nlp.saffron.run.SaffronPipeline "{corpus}" "{output}" "{config}" -k TAXO'
+      REALTRON_WORK_DIR: /app/work
+    volumes:
+      - ./keys:/keys:ro
+      - ./tools/saffron-home:/saffron-home:ro
+      - ./backend/work:/app/work
+    ports:
+      - "8000:8000"
+    depends_on:
+      - grobid
+
+  admin-web:
+    build: ./admin-web
+    ports:
+      - "5173:80"
