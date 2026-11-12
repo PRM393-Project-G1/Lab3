@@ -82,6 +82,26 @@ Gửi push `Analysis done` thật cho mọi tài khoản đã đăng ký token, 
 .venv/Scripts/python -m orchestrator.push 1706.03762
 ```
 
+## Thông báo từ web admin
+
+`build_app` tự chạy worker theo dõi `adminNotificationRequests` trong Firestore: kiểm tra quyền admin, lưu inbox từng user và gửi FCM khi có token. Admin có thể chọn tất cả hoặc chỉ định người nhận. Không cần mở thêm endpoint HTTP.
+
+Để chỉ thử thông báo, có thể dùng `requirements-notifications.txt` và chạy `python -m orchestrator.notification_worker` độc lập với pipeline phân tích. Hướng dẫn khóa Firebase, Rules, lệnh chạy và cách đọc kết quả: [`docs/ADMIN_NOTIFICATIONS.md`](../docs/ADMIN_NOTIFICATIONS.md). Khởi động worker sẽ xử lý các yêu cầu thật đang chờ.
+
+## Thao tác từ web admin
+
+`build_app` cũng chạy worker cho `adminActions` trong cùng tiến trình với job manager: dừng hoặc chạy lại bài, ẩn/hiện/xóa kết quả, cấp/thu quyền admin, khóa/mở khóa tài khoản. Worker kiểm tra lại role của người yêu cầu trước mỗi thao tác và ghi kết quả vào chính tài liệu đó. Hàng đợi được đọc mỗi 10 giây; đổi bằng `ADMIN_ACTION_POLL_SECONDS` trong `.env` (mỗi lần đọc rỗng tốn một lượt đọc Firestore).
+
+API và worker thông báo ghi heartbeat vào `workerStatus/backend` và `workerStatus/notifications` khoảng mỗi phút, để web biết tiến trình nào đang chạy. Mọi lệnh gọi API giờ kiểm tra cả token bị thu hồi hoặc tài khoản bị khóa.
+
+Bài đã phân tích trước khi có `topicSummary` (dùng cho biểu đồ chủ đề yếu) cần chạy một lần:
+
+```bash
+.venv/Scripts/python -m orchestrator.backfill
+```
+
+Thêm `--force` để tính lại mọi bài.
+
 ## Upload báo cáo lên Cloudinary
 
 Gói Spark không có Cloud Storage, nên app tạm upload báo cáo PDF lên Cloudinary. App không giữ secret: nó gọi `POST /api/uploads/signature`, service kiểm tra Firebase token rồi ký cho đúng `reports/{uid}/{fileName}`, với uid lấy từ token. App gửi file thẳng lên Cloudinary bằng chữ ký đó, nên mỗi user chỉ ghi được vào thư mục của mình.

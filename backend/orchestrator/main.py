@@ -18,6 +18,9 @@ from .jobs import JobManager, Pipeline
 from .ports import AnalysisSteps, AnalysisStore
 from .steps import Steps
 from .uploads import CloudinarySigner
+from .notification_worker import NotificationWorker
+from .heartbeat import Heartbeat
+from .admin_actions import ActionStore, AdminActionWorker
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ logger = logging.getLogger(__name__)
 _ARXIV_ID = re.compile(r"^\d{4}\.\d{4,5}$")
 # No slash, so the name cannot leave the user's folder.
 _REPORT_FILE = re.compile(r"^[A-Za-z0-9_.-]{1,100}\.pdf$")
+# The API process, which also runs jobs; the notification worker reports separately.
+BACKEND_HEARTBEAT = "backend"
 
 
 class StartRequest(BaseModel):
@@ -41,6 +46,9 @@ def create_app(
     verify_token: Callable[[str], str],
     steps: AnalysisSteps,
     signer: CloudinarySigner | None = None,
+    notifications: NotificationWorker | None = None,
+    actions: ActionStore | None = None,
+    action_poll_seconds: float = 10,
 ) -> FastAPI:
     """Builds the API around its dependencies, so the tests can pass in fakes."""
 
@@ -50,9 +58,27 @@ def create_app(
         interrupted = await asyncio.to_thread(store.fail_interrupted)
         if interrupted:
             logger.warning("Marked %d interrupted analyses as failed", interrupted)
-        yield
-        # What was running is marked as interrupted on the next start.
-        await app.state.manager.cancel_all()
+        stop_notifications = asyncio.Event()
+        notification_task = asyncio.create_task(notifications.run(stop_notifications)) if notifications else None
+        stop_heartbeat = asyncio.Event()
+        manager = app.state.manager
+        heartbeat_task = asyncio.create_task(Heartbeat(
+            BACKEND_HEARTBEAT, store.heartbeat, extra=lambda: {"runningJobs": manager.running}).run(stop_heartbeat))
+        # Admin actions need this process's job manager, so they run here and not in the notification worker.
+        action_task = asyncio.create_task(AdminActionWorker(actions, manager, action_poll_seconds).run(stop_heartbeat)) if actions else None
+        try:
+            yield
+        finally:
+            # Let a push attempt finish instead of cancelling midway and losing its outcome.
+            stop_notifications.set()
+            stop_heartbeat.set()
+            if notification_task:
+                await notification_task
+            if action_task:
+                await action_task
+            await heartbeat_task
+            # What was running is marked as interrupted on the next start.
+            await app.state.manager.cancel_all()
 
     app = FastAPI(title="Realtron", version=__version__, lifespan=lifespan)
 
@@ -113,6 +139,7 @@ def create_app(
 def build_app() -> FastAPI:
     """For uvicorn: `uvicorn --factory orchestrator.main:build_app`."""
     from .store import FirebaseStore, verify_token
+    from .notification_store import FirebaseNotificationStore
 
     logging.basicConfig(level=logging.INFO)
     key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
@@ -121,4 +148,7 @@ def build_app() -> FastAPI:
     signer = CloudinarySigner.from_env()
     if signer is None:
         logger.warning("No CLOUDINARY_* settings: report uploads are off")
-    return create_app(FirebaseStore(), verify_token, Steps(Settings.from_env()), signer)
+    store = FirebaseStore()
+    return create_app(store, verify_token, Steps(Settings.from_env()), signer,
+        notifications=NotificationWorker(FirebaseNotificationStore()), actions=store,
+        action_poll_seconds=float(os.environ.get("ADMIN_ACTION_POLL_SECONDS", 10)))

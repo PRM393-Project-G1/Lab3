@@ -111,6 +111,12 @@ Widget _gallery() => MaterialApp(
           timeLabel: '4 h ago',
           state: HistoryCardState.running,
         ),
+        const HistoryCard(
+          title: 'Neural Machine Translation by Jointly Learning to Align and Translate',
+          arxivId: '1409.0473',
+          timeLabel: '1 d ago',
+          state: HistoryCardState.removed,
+        ),
         TopicTreeNode(
           name: 'Attention mechanisms in neural machine translation',
           counts: _counts,
@@ -190,6 +196,14 @@ Widget _gallery() => MaterialApp(
           ),
         ),
         SizedBox(height: 320, child: StateView.error(onAction: () {})),
+        const SizedBox(
+          height: 360,
+          child: StateView.empty(
+            icon: Icons.visibility_off_rounded,
+            title: 'Results unavailable',
+            message: 'An administrator removed these results: references were parsed from the wrong PDF version',
+          ),
+        ),
         const SizedBox(height: 300, child: SkeletonList(itemCount: 2)),
         AppDialog(
           title: 'Stop analysis?',

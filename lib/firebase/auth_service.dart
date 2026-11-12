@@ -5,7 +5,15 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/app_user.dart';
 
-enum SignInResult { success, cancelled, offline, failed }
+enum SignInResult {
+  success,
+  cancelled,
+  offline,
+  failed,
+
+  /// An administrator disabled the account in the admin web.
+  disabled,
+}
 
 abstract class AuthService {
   Stream<AppUser?> get userChanges;
@@ -57,9 +65,11 @@ class FirebaseAuthService implements AuthService {
     } on SocketException {
       return SignInResult.offline;
     } on FirebaseAuthException catch (e) {
-      return e.code == 'network-request-failed'
-          ? SignInResult.offline
-          : SignInResult.failed;
+      return switch (e.code) {
+        'network-request-failed' => SignInResult.offline,
+        'user-disabled' => SignInResult.disabled,
+        _ => SignInResult.failed,
+      };
     }
   }
 

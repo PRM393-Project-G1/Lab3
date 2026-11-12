@@ -10,6 +10,7 @@ class StateView extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    this.message,
     this.actionLabel,
     this.onAction,
   }) : isError = false;
@@ -18,12 +19,16 @@ class StateView extends StatelessWidget {
     super.key,
     this.icon = Icons.cloud_off_rounded,
     this.title = "Couldn't load",
+    this.message,
     this.actionLabel = 'Retry',
     this.onAction,
   }) : isError = true;
 
   final IconData icon;
   final String title;
+
+  /// An optional sentence under the title that explains the state.
+  final String? message;
   final String? actionLabel;
   final VoidCallback? onAction;
   final bool isError;
@@ -58,6 +63,14 @@ class StateView extends StatelessWidget {
               style: context.text.headlineMedium,
               textAlign: TextAlign.center,
             ),
+            if (message != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                message!,
+                style: context.text.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: AppSpacing.lg),
               AppButton(

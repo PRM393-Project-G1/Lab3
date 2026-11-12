@@ -7,7 +7,7 @@ import 'app_card.dart';
 import 'status_bar.dart';
 import 'status_chip.dart';
 
-enum HistoryCardState { done, running, failed }
+enum HistoryCardState { done, running, failed, removed }
 
 /// One past or running analysis.
 class HistoryCard extends StatelessWidget {
@@ -90,6 +90,11 @@ class HistoryCard extends StatelessWidget {
                 RefStatus.unverified,
                 label: 'Running',
                 icon: Icons.sync_rounded,
+              ),
+              HistoryCardState.removed => const StatusChip(
+                RefStatus.unverified,
+                label: 'Removed',
+                icon: Icons.visibility_off_rounded,
               ),
               HistoryCardState.failed => const StatusChip(
                 RefStatus.error,

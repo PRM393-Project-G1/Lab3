@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,22 @@ def parse_output(output: Any) -> dict[str, Any]:
     return json.loads(match.group(0))
 
 
+def final_report(task_id: str) -> str | None:
+    """The agent's closing report for a finished task.
+
+    The Flash profile leaves the task's `output` empty: its answer is the
+    `explanation` of the last `report_task_status` step of the session.
+    """
+    base = os.environ.get("ARTEMIS_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    with urllib.request.urlopen(f"{base}/api/sessions/{task_id}/steps", timeout=30) as response:
+        steps = json.load(response)
+    for step in reversed(steps):
+        action = step.get("action_taken") or {}
+        if action.get("action") == "report_task_status":
+            return (action.get("args") or {}).get("explanation")
+    return None
+
+
 class Agent:
     """Sends one instruction and returns the values the agent reports."""
 
@@ -93,13 +110,16 @@ class Agent:
             expected_output=f"A JSON object with these keys: {fields}",
             timeout=timeout,
         )
+        output = result.output
+        if output is None and result.succeeded:
+            output = final_report(result.trace_id)
         self._node.user_properties += [
             ("trace_id", result.trace_id),
             ("agent_seconds", round(time.monotonic() - started, 1)),
-            ("output", result.output),
+            ("output", output),
         ]
         assert result.succeeded, result.error or result.status
-        return parse_output(result.output)
+        return parse_output(output)
 
 
 def adb(*args: str, timeout: float = 60) -> str:

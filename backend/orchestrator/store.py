@@ -9,7 +9,11 @@ from typing import Any
 import firebase_admin
 from firebase_admin import auth, exceptions, firestore, messaging
 
-from .contract import DONE_TYPE, FAILED, QUEUED, RUNNING
+from .contract import DONE, DONE_TYPE, FAILED, QUEUED, RUNNING
+from .admin_actions import ACTIONS
+from .directory import Account, directory_fields
+from .heartbeat import WORKER_STATUS
+from .notification_worker import DIRECTORY
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +23,11 @@ _TOKEN_GONE = (messaging.UnregisteredError, messaging.SenderIdMismatchError)
 
 
 def verify_token(token: str) -> str:
-    """Returns the user's ID. Raises ValueError for any token that is not valid."""
+    """Returns the user's ID. Raises ValueError for a token that is not valid, revoked or
+    belongs to a disabled account."""
     try:
-        return auth.verify_id_token(token)["uid"]
+        # Revocation also covers accounts an admin disabled; it costs one Auth lookup per command.
+        return auth.verify_id_token(token, check_revoked=True)["uid"]
     except (ValueError, exceptions.FirebaseError) as error:
         raise ValueError("Invalid token") from error
 
@@ -29,10 +35,13 @@ def verify_token(token: str) -> str:
 class FirebaseStore:
     """Uses the service account named by GOOGLE_APPLICATION_CREDENTIALS."""
 
-    def __init__(self) -> None:
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app()
-        self._db = firestore.client()
+    def __init__(self, db: Any = None, auth_api: Any = auth) -> None:
+        if db is None:
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
+            db = firestore.client()
+        self._db = db
+        self._auth = auth_api
 
     def _analysis(self, analysis_id: str):
         return self._db.collection("analyses").document(analysis_id)
@@ -50,15 +59,122 @@ class FirebaseStore:
                 "status": QUEUED,
                 "progress": {"stage": "references", "percent": 0, "processedRefs": 0},
                 "error": None,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
             },
             merge=True,
         )
 
     def update_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
-        self._analysis(analysis_id).set(fields, merge=True)
+        # `updatedAt` lets the admin web tell a slow job from a stalled one.
+        self._analysis(analysis_id).set({**fields, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
+        self._db.collection(WORKER_STATUS).document(name).set({**fields, "lastSeen": firestore.SERVER_TIMESTAMP}, merge=True)
+
+    def _user(self, uid: str):
+        return self._db.collection("users").document(uid)
+
+    def get_user(self, uid: str) -> dict[str, Any] | None:
+        snapshot = self._user(uid).get()
+        if not snapshot.exists:
+            return None
+        try:
+            disabled = self._auth.get_user(uid).disabled is True
+        except auth.UserNotFoundError:
+            disabled = False
+        return {**(snapshot.to_dict() or {}), "disabled": disabled}
+
+    def admin_count(self) -> int:
+        query = self._db.collection("users").where(filter=firestore.FieldFilter("role", "==", "admin"))
+        return int(query.count().get()[0][0].value)
+
+    def set_role(self, uid: str, role: str) -> None:
+        self._user(uid).update({"role": role})
+        self._refresh_directory(uid)
+
+    def set_disabled(self, uid: str, disabled: bool) -> None:
+        self._auth.update_user(uid, disabled=disabled)
+        if disabled:
+            # Signed-in devices cannot refresh their session, so it ends within an hour.
+            self._auth.revoke_refresh_tokens(uid)
+        self._refresh_directory(uid)
+
+    def _refresh_directory(self, uid: str) -> None:
+        """Updates the admin web's list at once instead of on the next minute's sync."""
+        try:
+            account: Account | None = Account.from_record(self._auth.get_user(uid))
+        except Exception:
+            account = None
+        entry = self._db.collection(DIRECTORY).document(uid)
+        previous = entry.get().to_dict()
+        fields = directory_fields(self._user(uid).get().to_dict() or {}, account, previous)
+        entry.set({**fields, "updatedAt": firestore.SERVER_TIMESTAMP})
+
+    def is_admin(self, uid: str) -> bool:
+        return (self._db.collection("users").document(uid).get().to_dict() or {}).get("role") == "admin"
+
+    def _action(self, action_id: str):
+        return self._db.collection(ACTIONS).document(action_id)
+
+    def queued_action_ids(self) -> list[str]:
+        query = self._db.collection(ACTIONS).where(filter=firestore.FieldFilter("status", "==", "queued")).limit(20)
+        return [snapshot.id for snapshot in query.stream()]
+
+    def claim_action(self, action_id: str, owner: str) -> dict[str, Any] | None:
+        reference = self._action(action_id)
+
+        @firestore.transactional
+        def claim(transaction):
+            data = reference.get(transaction=transaction).to_dict() or {}
+            if data.get("status") != "queued":
+                return None
+            transaction.update(reference, {"status": "processing", "workerId": owner, "startedAt": firestore.SERVER_TIMESTAMP})
+            return data
+
+        return claim(self._db.transaction())
+
+    def finish_action(self, action_id: str, owner: str, fields: dict[str, Any]) -> None:
+        reference = self._action(action_id)
+
+        @firestore.transactional
+        def finish(transaction):
+            data = reference.get(transaction=transaction).to_dict() or {}
+            if data.get("status") == "processing" and data.get("workerId") == owner:
+                transaction.update(reference, {**fields, "finishedAt": firestore.SERVER_TIMESTAMP})
+
+        finish(self._db.transaction())
+
+    def fail_unfinished_actions(self, message: str) -> int:
+        query = self._db.collection(ACTIONS).where(filter=firestore.FieldFilter("status", "==", "processing"))
+        count = 0
+        for snapshot in query.stream():
+            snapshot.reference.update({"status": "failed", "error": message, "finishedAt": firestore.SERVER_TIMESTAMP})
+            count += 1
+        return count
+
+    def completed_analyses(self) -> Iterable[tuple[str, dict[str, Any]]]:
+        query = self._db.collection("analyses").where(filter=firestore.FieldFilter("status", "==", DONE))
+        for snapshot in query.stream():
+            yield snapshot.id, snapshot.to_dict() or {}
+
+    def topics_of(self, analysis_id: str) -> list[dict[str, Any]]:
+        return [snapshot.to_dict() or {} for snapshot in self._analysis(analysis_id).collection("topics").stream()]
 
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self.update_analysis(analysis_id, {**fields, "finishedAt": firestore.SERVER_TIMESTAMP})
+
+    def delete_analysis(self, analysis_id: str) -> None:
+        """Deletes the results before the analysis, so after a partial failure the analysis
+        is still listed and deleting it again finishes the job."""
+        parent = self._analysis(analysis_id)
+        for name in ("references", "topics"):
+            snapshots = list(parent.collection(name).stream())
+            for offset in range(0, len(snapshots), BATCH_SIZE):
+                batch = self._db.batch()
+                for snapshot in snapshots[offset:offset + BATCH_SIZE]:
+                    batch.delete(snapshot.reference)
+                batch.commit()
+        parent.delete()
 
     def fail_interrupted(self) -> int:
         """After a restart nothing is running, so the app must not keep waiting."""

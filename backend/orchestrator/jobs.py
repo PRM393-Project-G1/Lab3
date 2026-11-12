@@ -164,6 +164,7 @@ class Pipeline:
                 "paperTitle": title,
                 "summary": summary,
                 "authorLinks": merge.author_links(saffron.author_sim),
+                "topicSummary": merge.topic_summary(topics),
                 "error": None,
                 "progress": {"stage": "topics", "percent": 100, "processedRefs": len(references)},
             },
@@ -183,6 +184,10 @@ class JobManager:
         self._pipeline = pipeline
         self._slots = asyncio.Semaphore(parallel)
         self._tasks: dict[str, asyncio.Task[None]] = {}
+
+    @property
+    def running(self) -> int:
+        return len(self._tasks)
 
     def is_running(self, analysis_id: str) -> bool:
         return analysis_id in self._tasks

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:realtron/models/analysis.dart';
 import 'package:realtron/models/ref_status.dart';
 import 'package:realtron/models/reference.dart';
 import 'package:realtron/models/topic.dart';
@@ -131,8 +132,30 @@ void main() {
         final vm = build();
         await pumpEventQueue();
         expect(vm.state, isA<Failure<OverviewData>>());
+        expect(vm.unavailableMessage, OverviewViewModel.deletedMessage);
       },
     );
+
+    test('results an administrator hid are explained, not shown', () async {
+      analyses.analyses[id] = const Analysis(
+        id: id,
+        status: AnalysisStatus.done,
+        hidden: true,
+        hiddenReason: 'Parsed from the wrong PDF',
+      );
+      final vm = build();
+      await pumpEventQueue();
+      expect(vm.state, isA<Failure<OverviewData>>());
+      expect(
+        vm.unavailableMessage,
+        'An administrator removed these results: Parsed from the wrong PDF',
+      );
+      expect(analytics.events, isEmpty);
+
+      analyses.fail = true;
+      await vm.load();
+      expect(vm.unavailableMessage, isNull);
+    });
   });
 
   group('Topic map', () {

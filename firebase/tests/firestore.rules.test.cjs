@@ -1,0 +1,216 @@
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { before, beforeEach, after, test } = require('node:test');
+const {
+  initializeTestEnvironment, assertSucceeds, assertFails,
+} = require('@firebase/rules-unit-testing');
+const {
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, serverTimestamp,
+} = require('firebase/firestore');
+
+let environment;
+let admin;
+let user;
+
+before(async () => {
+  // Deliberately refuse to run without the local emulator.
+  const address = process.env.FIRESTORE_EMULATOR_HOST;
+  if (!address) throw new Error('Run through npm run test:rules; an emulator is required.');
+  const [host, port] = address.split(':');
+  environment = await initializeTestEnvironment({
+    projectId: 'demo-realtron-admin',
+    firestore: {
+      host, port: Number(port),
+      rules: readFileSync(join(__dirname, '../firestore.rules'), 'utf8'),
+    },
+  });
+  await environment.clearFirestore();
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, 'users/admin'), { role: 'admin' }),
+      setDoc(doc(db, 'users/user'), { role: 'user' }),
+      setDoc(doc(db, 'analyses/1706.03762'), { status: 'done' }),
+      setDoc(doc(db, 'analyses/1706.03762/references/ref-001'), { status: 'verified' }),
+      setDoc(doc(db, 'analyses/1706.03762/topics/topic-1'), { term: 'Attention' }),
+      setDoc(doc(db, 'users/user/library/1706.03762'), { customTitle: 'My paper' }),
+    ]);
+  });
+  admin = environment.authenticatedContext('admin').firestore();
+  user = environment.authenticatedContext('user').firestore();
+});
+
+after(async () => { await environment?.cleanup(); });
+
+beforeEach(async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'users/admin'), { role: 'admin' });
+  });
+});
+
+test('only admin can list all analysis documents', async () => {
+  await assertSucceeds(getDocs(collection(admin, 'analyses')));
+  await assertFails(getDocs(collection(user, 'analyses')));
+  const anonymous = environment.unauthenticatedContext().firestore();
+  await assertFails(getDocs(collection(anonymous, 'analyses')));
+  await assertFails(getDoc(doc(anonymous, 'analyses/1706.03762')));
+  const missingRole = environment.authenticatedContext('missing-profile').firestore();
+  await assertFails(getDocs(collection(missingRole, 'analyses')));
+});
+
+test('users retain lookup, reference and topic access for the existing app', async () => {
+  await assertSucceeds(getDoc(doc(user, 'analyses/1706.03762')));
+  await assertSucceeds(getDocs(collection(user, 'analyses/1706.03762/references')));
+  await assertSucceeds(getDocs(collection(user, 'analyses/1706.03762/topics')));
+});
+
+test('clients cannot create or modify analyses, even as admin', async () => {
+  for (const db of [admin, user]) {
+    await assertFails(setDoc(doc(db, 'analyses/client-created'), { status: 'done' }));
+    await assertFails(updateDoc(doc(db, 'analyses/1706.03762'), { status: 'failed' }));
+    await assertFails(deleteDoc(doc(db, 'analyses/1706.03762')));
+    await assertFails(setDoc(doc(db, 'analyses/1706.03762/topics/injected'), { term: 'Fake' }));
+  }
+});
+
+test('a client cannot grant itself admin or change an assigned role', async () => {
+  await assertFails(updateDoc(doc(user, 'users/user'), { role: 'admin' }));
+  const newcomer = environment.authenticatedContext('newcomer').firestore();
+  await assertFails(setDoc(doc(newcomer, 'users/newcomer'), { role: 'admin' }));
+  await assertSucceeds(setDoc(doc(newcomer, 'users/newcomer'), { role: 'user' }));
+  await assertSucceeds(updateDoc(doc(admin, 'users/admin'), { displayName: 'Admin' }));
+  await assertFails(updateDoc(doc(admin, 'users/admin'), { role: 'user' }));
+});
+
+test('admin monitoring does not expose another user profile or library', async () => {
+  await assertFails(getDoc(doc(admin, 'users/user')));
+  await assertFails(getDocs(collection(admin, 'users/user/library')));
+  await assertSucceeds(getDocs(collection(user, 'users/user/library')));
+});
+
+test('revoked role loses permission on the next collection request', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'users/admin'), { role: 'user' });
+  });
+  await assertFails(getDocs(collection(admin, 'analyses')));
+});
+
+const announcement = (overrides = {}) => ({
+  title: 'Project update', body: 'A useful message', audience: 'all', recipientUids: [],
+  requestedBy: 'admin', status: 'queued', createdAt: serverTimestamp(), ...overrides,
+});
+
+test('only admin can create and read an announcement request', async () => {
+  const path = 'adminNotificationRequests/rules-announcement-valid-1234';
+  await assertSucceeds(setDoc(doc(admin, path), announcement()));
+  await assertSucceeds(getDocs(collection(admin, 'adminNotificationRequests')));
+  await assertFails(getDoc(doc(user, path)));
+  await assertFails(setDoc(doc(user, 'adminNotificationRequests/rules-user-forged-request-1234'), announcement({ requestedBy: 'user' })));
+  await assertFails(setDoc(doc(environment.unauthenticatedContext().firestore(), 'adminNotificationRequests/rules-anonymous-request-1234'), announcement()));
+});
+
+test('selected audience, server timestamp and immutable payload are enforced', async () => {
+  const path = 'adminNotificationRequests/rules-selected-announcement-1234';
+  await assertSucceeds(setDoc(doc(admin, path), announcement({ audience: 'selected', recipientUids: ['user'] })));
+  await assertSucceeds(setDoc(doc(admin, 'adminNotificationRequests/rules-linked-announcement-1234'), announcement({ analysisId: '1706.03762' })));
+  await assertFails(updateDoc(doc(admin, path), { title: 'Changed content' }));
+  await assertFails(updateDoc(doc(admin, path), { status: 'completed', counts: { pushAccepted: 100 } }));
+  await assertFails(deleteDoc(doc(admin, path)));
+  const invalid = [
+    { requestedBy: 'someone-else' }, { status: 'completed' }, { createdAt: new Date(2000, 0, 1) },
+    { title: '' }, { body: 'x'.repeat(501) }, { audience: 'all', recipientUids: ['user'] },
+    { audience: 'selected', recipientUids: [] }, { audience: 'selected', recipientUids: ['user', 'user'] },
+    { counts: { pushAccepted: 100 } }, { recipientUids: 'not-an-array' }, { analysisId: '../users' }, { analysisId: 1706 },
+  ];
+  for (let i = 0; i < invalid.length; i++) {
+    await assertFails(setDoc(doc(admin, `adminNotificationRequests/rules-invalid-request-number-${i}`), announcement(invalid[i])));
+  }
+});
+
+test('directory is admin-readable and server-writable without exposing profiles', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'adminUserDirectory/user'), { displayName: 'User', hasDevice: true });
+  });
+  await assertSucceeds(getDocs(collection(admin, 'adminUserDirectory')));
+  await assertFails(getDocs(collection(user, 'adminUserDirectory')));
+  await assertFails(setDoc(doc(admin, 'adminUserDirectory/injected'), { displayName: 'Fake' }));
+  await assertFails(getDoc(doc(admin, 'users/user')));
+});
+
+test('worker status is admin-readable and only the server writes it', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'workerStatus/backend'), { state: 'running', lastSeen: new Date() });
+  });
+  await assertSucceeds(getDocs(collection(admin, 'workerStatus')));
+  await assertFails(getDoc(doc(user, 'workerStatus/backend')));
+  await assertFails(setDoc(doc(admin, 'workerStatus/backend'), { state: 'running', lastSeen: serverTimestamp() }));
+  await assertFails(setDoc(doc(user, 'workerStatus/notifications'), { state: 'running' }));
+});
+
+const action = (overrides = {}) => ({
+  type: 'cancelAnalysis', target: '1706.03762', requestedBy: 'admin', status: 'queued', createdAt: serverTimestamp(), ...overrides,
+});
+
+test('only admin queues analysis actions, and requests are immutable', async () => {
+  const path = 'adminActions/rules-cancel-action-request-1234';
+  await assertSucceeds(setDoc(doc(admin, path), action({ reason: 'Stuck for an hour' })));
+  for (const type of ['retryAnalysis', 'hideAnalysis', 'unhideAnalysis', 'deleteAnalysis']) {
+    await assertSucceeds(setDoc(doc(admin, `adminActions/rules-${type}-action-request-1234`), action({ type })));
+  }
+  await assertSucceeds(getDocs(collection(admin, 'adminActions')));
+  await assertFails(getDoc(doc(user, path)));
+  await assertFails(setDoc(doc(user, 'adminActions/rules-user-action-request-1234'), action({ requestedBy: 'user' })));
+  await assertFails(updateDoc(doc(admin, path), { status: 'completed' }));
+  await assertFails(deleteDoc(doc(admin, path)));
+});
+
+test('action shape, type, target and timestamp are enforced', async () => {
+  const invalid = [
+    { requestedBy: 'someone-else' }, { status: 'completed' }, { createdAt: new Date(2000, 0, 1) },
+    { type: 'deleteEverything' }, { target: '../users/admin' }, { target: 'users' }, { reason: 'x'.repeat(201) },
+    { result: 'Done already' }, { workerId: 'forged' },
+  ];
+  for (let i = 0; i < invalid.length; i++) {
+    await assertFails(setDoc(doc(admin, `adminActions/rules-invalid-action-number-${i}`), action(invalid[i])));
+  }
+  await assertFails(setDoc(doc(admin, 'adminActions/short'), action()));
+});
+
+test('admins queue role and account changes for others, never for themselves', async () => {
+  const change = (overrides) => {
+    const data = action({ type: 'setRole', target: 'user', role: 'admin', ...overrides });
+    Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
+    return data;
+  };
+  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-grant-admin-request-1234'), change({})));
+  await assertSucceeds(setDoc(doc(admin, 'adminActions/rules-disable-user-request-1234'), change({ type: 'setDisabled', role: undefined, disabled: true })));
+  const invalid = [
+    { target: 'admin' }, { role: 'owner' }, { role: undefined }, { disabled: true },
+    { type: 'setDisabled', role: undefined, disabled: 'yes' }, { type: 'setDisabled', role: 'admin', disabled: true },
+    { target: 'users/user' }, { target: '' }, { type: 'cancelAnalysis', target: '1706.03762', role: 'admin' },
+  ];
+  for (let i = 0; i < invalid.length; i++) {
+    await assertFails(setDoc(doc(admin, `adminActions/rules-invalid-user-action-${i}`), change(invalid[i])));
+  }
+  await assertFails(setDoc(doc(user, 'adminActions/rules-user-self-promotion-1234'), change({ requestedBy: 'user', target: 'other' })));
+});
+
+test('scheduled sends stay within 30 days and only queued requests can be cancelled', async () => {
+  const soon = new Date(Date.now() + 3600000);
+  await assertSucceeds(setDoc(doc(admin, 'adminNotificationRequests/rules-scheduled-request-1234'), announcement({ sendAt: soon })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-past-schedule-request-12'), announcement({ sendAt: new Date(Date.now() - 60000) })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-far-schedule-request-123'), announcement({ sendAt: new Date(Date.now() + 31 * 86400000) })));
+  await assertFails(setDoc(doc(admin, 'adminNotificationRequests/rules-text-schedule-request-12'), announcement({ sendAt: 'tomorrow' })));
+  const path = 'adminNotificationRequests/rules-scheduled-request-1234';
+  const cancel = { status: 'cancelled', cancelledBy: 'admin', cancelledAt: serverTimestamp() };
+  await assertFails(updateDoc(doc(user, path), { ...cancel, cancelledBy: 'user' }));
+  await assertFails(updateDoc(doc(admin, path), { ...cancel, cancelledBy: 'someone-else' }));
+  await assertFails(updateDoc(doc(admin, path), { ...cancel, title: 'Changed' }));
+  await assertFails(updateDoc(doc(admin, path), { status: 'completed' }));
+  await assertSucceeds(updateDoc(doc(admin, path), cancel));
+  await assertFails(updateDoc(doc(admin, path), { status: 'queued' }));
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'adminNotificationRequests/rules-processing-request-1234'), announcement({ status: 'processing', createdAt: new Date() }));
+  });
+  await assertFails(updateDoc(doc(admin, 'adminNotificationRequests/rules-processing-request-1234'), cancel));
+});

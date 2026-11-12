@@ -217,6 +217,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text("You're offline"), findsOneWidget);
 
+      auth.result = SignInResult.disabled;
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      expect(find.text('This account is disabled'), findsOneWidget);
+      expect(
+        find.textContaining('An administrator disabled it'),
+        findsOneWidget,
+      );
+
       auth.result = SignInResult.success;
       await tester.tap(find.text('Continue with Google'));
       await tester.pumpAndSettle();
@@ -633,6 +642,70 @@ void main() {
   });
 
   group('Flow C', () {
+    testWidgets('admin announcement opens its full message and marks it read', (
+      tester,
+    ) async {
+      const body =
+          'Realtron will receive a maintenance update. Your existing paper results remain available.';
+      firestore.notifications = [
+        AppNotification(
+          id: 'admin-notice',
+          title: 'A message from Realtron',
+          body: body,
+          type: 'admin_message',
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/notifications');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A message from Realtron'));
+      await tester.pumpAndSettle();
+      expect(firestore.readIds, ['admin-notice']);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text(body),
+        ),
+        findsOneWidget,
+      );
+      expect(router.state.uri.path, '/notifications');
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Open paper'), findsNothing);
+    });
+
+    testWidgets('an admin message linking a paper opens it from the dialog', (
+      tester,
+    ) async {
+      firestore.notifications = [
+        AppNotification(
+          id: 'admin-link',
+          title: 'Read this paper',
+          body: 'Its references are a good example.',
+          type: 'admin_message',
+          analysisId: id,
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final router = await pumpApp(tester);
+      router.go('/notifications');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Read this paper'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Its references are a good example.'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Open paper'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/analyses/$id');
+    });
+
     setUp(() {
       library.entries = [LibraryEntry(arxivId: id, addedAt: DateTime.now())];
     });

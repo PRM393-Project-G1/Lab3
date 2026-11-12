@@ -51,14 +51,31 @@ class OverviewViewModel extends BaseViewModel {
   ViewState<OverviewData> get state => _state;
   bool get canExport => _remoteConfig.enableReportExport;
 
+  /// Why there is nothing to show when an administrator hid or deleted the
+  /// results. Null for ordinary load errors, which are worth a retry.
+  String? get unavailableMessage => _unavailableMessage;
+  String? _unavailableMessage;
+
+  static const deletedMessage =
+      'An administrator may have removed it. Analyze the paper again for fresh results.';
+
+  static String hiddenMessage(String? reason) =>
+      reason == null || reason.isEmpty
+      ? 'An administrator removed these results.'
+      : 'An administrator removed these results: $reason';
+
   Future<void> load() async {
     _state = const Loading();
+    _unavailableMessage = null;
     notifyListeners();
     try {
       final results = await _analyses.getResults(analysisId);
       final analysis = results.analysis;
-      if (analysis == null) {
-        _state = const Failure.loadFailed();
+      if (analysis == null || analysis.hidden) {
+        _unavailableMessage = analysis == null
+            ? deletedMessage
+            : hiddenMessage(analysis.hiddenReason);
+        _state = const Failure('Results unavailable');
         notifyListeners();
         return;
       }

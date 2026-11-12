@@ -133,3 +133,18 @@ def test_only_who_started_it_can_stop_it(client, store):
 def test_cancelling_an_unknown_paper_is_not_found(client):
     response = client.post(f"/api/analyses/{ID}/cancel", json={}, headers=AUTH)
     assert response.status_code == 404
+
+
+def test_optional_notification_worker_is_stopped_with_the_app(store, steps):
+    class Worker:
+        started = False
+        stopped = False
+        async def run(self, stop):
+            self.started = True
+            await stop.wait()
+            self.stopped = True
+    worker = Worker()
+    with TestClient(create_app(store, verify_token, steps, notifications=worker)) as client:
+        assert client.get('/api/health').status_code == 200
+        assert worker.started
+    assert worker.stopped

@@ -26,6 +26,7 @@ class FakeStore:
         self.notifications: list[tuple[str, str, str, str]] = []
         self.interrupted_checks = 0
         self.fail_notify = False
+        self.heartbeats: list[tuple[str, dict[str, Any]]] = []
 
     def get_analysis(self, analysis_id: str) -> dict[str, Any] | None:
         return self.analyses.get(analysis_id)
@@ -39,6 +40,9 @@ class FakeStore:
 
     def finish_analysis(self, analysis_id: str, fields: dict[str, Any]) -> None:
         self.update_analysis(analysis_id, fields)
+
+    def heartbeat(self, name: str, fields: dict[str, Any]) -> None:
+        self.heartbeats.append((name, dict(fields)))
 
     def fail_interrupted(self) -> int:
         self.interrupted_checks += 1
@@ -101,3 +105,81 @@ class FakeSteps:
             author_terms=[{"authorId": "A. Vaswani", "termId": "attention", "score": 0.5}],
             author_sim=[{"author1_id": "A. Vaswani", "author2_id": "N. Shazeer", "similarity": 0.9}],
         )
+
+
+class FakeActionStore(FakeStore):
+    """FakeStore plus the admin action queue and user roles."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.actions: dict[str, dict[str, Any]] = {}
+        self.roles: dict[str, str] = {"admin-1": "admin", UID: "user"}
+        self.created: list[tuple[str, str, bool]] = []
+        self.deleted: list[str] = []
+        self.disabled: set[str] = set()
+
+    def queue(self, action_id: str, **fields: Any) -> None:
+        self.actions[action_id] = {"requestedBy": "admin-1", "status": "queued", **fields}
+
+    def queued_action_ids(self) -> list[str]:
+        return [key for key, value in self.actions.items() if value["status"] == "queued"]
+
+    def claim_action(self, action_id: str, owner: str) -> dict[str, Any] | None:
+        action = self.actions.get(action_id)
+        if not action or action["status"] != "queued":
+            return None
+        snapshot = dict(action)
+        action.update(status="processing", workerId=owner)
+        return snapshot
+
+    def finish_action(self, action_id: str, owner: str, fields: dict[str, Any]) -> None:
+        action = self.actions[action_id]
+        if action["status"] == "processing" and action["workerId"] == owner:
+            action.update(fields)
+
+    def fail_unfinished_actions(self, message: str) -> int:
+        stale = [value for value in self.actions.values() if value["status"] == "processing"]
+        for value in stale:
+            value.update(status="failed", error=message)
+        return len(stale)
+
+    def delete_analysis(self, analysis_id: str) -> None:
+        self.deleted.append(analysis_id)
+        self.analyses.pop(analysis_id, None)
+
+    def get_user(self, uid: str) -> dict[str, Any] | None:
+        return {"role": self.roles[uid], "disabled": uid in self.disabled} if uid in self.roles else None
+
+    def admin_count(self) -> int:
+        return sum(role == "admin" for role in self.roles.values())
+
+    def set_role(self, uid: str, role: str) -> None:
+        self.roles[uid] = role
+
+    def set_disabled(self, uid: str, disabled: bool) -> None:
+        (self.disabled.add if disabled else self.disabled.discard)(uid)
+
+    def is_admin(self, uid: str) -> bool:
+        return self.roles.get(uid) == "admin"
+
+    def create_analysis(self, analysis_id: str, uid: str, ai_assisted: bool) -> None:
+        self.created.append((analysis_id, uid, ai_assisted))
+        super().create_analysis(analysis_id, uid, ai_assisted)
+
+
+class FakeJobs:
+    def __init__(self) -> None:
+        self.running: set[str] = set()
+        self.started: list[tuple[str, str, bool]] = []
+        self.cancelled: list[str] = []
+
+    def is_running(self, analysis_id: str) -> bool:
+        return analysis_id in self.running
+
+    def start(self, analysis_id: str, uid: str, ai_assisted: bool) -> None:
+        self.started.append((analysis_id, uid, ai_assisted))
+        self.running.add(analysis_id)
+
+    async def cancel(self, analysis_id: str) -> None:
+        self.cancelled.append(analysis_id)
+        self.running.discard(analysis_id)

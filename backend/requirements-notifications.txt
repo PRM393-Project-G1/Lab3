@@ -1,0 +1,3 @@
+# Standalone notification worker; no Saffron, GROBID or RefChecker required.
+firebase-admin>=7.0,<8
+python-dotenv>=1.0,<2

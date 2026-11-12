@@ -1,4 +1,5 @@
 .venv/
+.venv-notifications/
 .env
 work/
 __pycache__/

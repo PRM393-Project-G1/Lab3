@@ -23,6 +23,10 @@ class TestFinishedJob:
         assert self.doc["progress"] == {"stage": "topics", "percent": 100, "processedRefs": 2}
         assert self.doc["error"] is None
 
+    def test_stores_a_topic_summary_for_the_admin_web(self):
+        # The fake taxonomy files only the verified reference under a topic.
+        assert self.doc["topicSummary"] == []
+
     def test_writes_the_summary_the_app_reads(self):
         assert self.doc["summary"]["totalRefs"] == 2
         assert self.doc["summary"]["error"] == 1

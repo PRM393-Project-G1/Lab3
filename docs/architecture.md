@@ -22,6 +22,7 @@ lib/
 test/                      # Unit test ViewModel (service giả), widget test design system
 e2e_test/                  # Test ARTEMIS (pytest)
 backend/                   # Orchestrator FastAPI: chạy RefChecker, Saffron; ghi Firestore, gửi FCM
+admin-web/                 # React/TypeScript/Vite: dashboard và gửi thông báo admin
 firebase/                  # storage.rules, firestore.rules, indexes, remote-config-defaults.json
 design/                    # Persona, flow, DESIGN.md, nhật ký AI, ảnh Stitch
 handoff/                   # flutter-handoff.md
@@ -158,12 +159,22 @@ sequenceDiagram
 | `users/{uid}` | `displayName`, `photoUrl`, `createdAt`, `fcmTokens[]`, `role` | App |
 | `users/{uid}/library/{arxivId}` | `customTitle`, `addedAt`, `lastOpenedAt` | App |
 | `users/{uid}/reports/{id}` | `analysisId`, `storagePath`, `downloadUrl`, `sizeKb`, `createdAt`. Chỉ ghi khi `enable_cloud_upload` bật | App |
-| `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId`, `createdAt`, `read` | Backend; app chỉ đổi `read` |
-| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `authorLinks[]`, `finishedAt`, `error` | Backend |
+| `users/{uid}/notifications/{id}` | `title`, `body`, `type`, `analysisId` (analysis_done) hoặc `requestId` (admin_message), `createdAt`, `read` | Backend; app chỉ đổi `read` |
+| `adminUserDirectory/{uid}` | `displayName`, `hasDevice`, `role`, `email`, `disabled`, `createdAt`, `lastSignInAt`, `updatedAt` | Worker (từ hồ sơ và Firebase Auth); admin chỉ đọc, không chứa token |
+| `adminNotificationRequests/{id}` | `title`, `body`, `audience`, `recipientUids[]`, `analysisId?`, `sendAt?`, `requestedBy`, `createdAt`, `status`, `counts`, `error`, `readCount`, `readCheckedAt` | Admin tạo queued hoặc hủy khi còn queued; worker claim và ghi kết quả |
+| `adminActions/{id}` | `type`, `target`, `requestedBy`, `createdAt`, `status`, `reason?`, `role?`, `disabled?`, `result`, `error`, `finishedAt` | Admin chỉ tạo queued; tiến trình API claim, thực hiện và ghi kết quả. Đồng thời là audit log |
+| `workerStatus/{backend,notifications}` | `state`, `lastSeen`, `startedAt`, `version`, `intervalSeconds`, `runningJobs` | Backend ghi heartbeat khoảng mỗi phút; admin chỉ đọc |
+| `analyses/{arxivId}` | `requestedBy`, `aiAssisted`, `createdAt`, `updatedAt`, `status` (`queued`, `processing`, `done`, `failed`, `cancelled`), `paperTitle`, `paperAuthors[]`, `progress`, `summary`, `topicSummary[]`, `authorLinks[]`, `hidden`, `hiddenReason`, `hiddenBy`, `hiddenAt`, `finishedAt`, `error` | Backend |
 | `analyses/{id}/references/{refId}` | `index`, `title`, `authors[]`, `year`, `venue`, `url`, `status`, `issues[]`, `hallucination`, `textSource`, `topicIds[]` | Backend |
 | `analyses/{id}/topics/{topicId}` | `term`, `parentId`, `depth`, `score`, `refIds[]`, `counts`, `importance`, `occurrences`, `related[]`, `authors[]` | Backend |
 
 Bốn trường cuối của `topics` và `authorLinks` lấy từ các file khác của Saffron (`terms.json`, `term-sim.json`, `author-terms.json`, `author-sim.json`). Phân tích cũ không có chúng; app coi như rỗng và ẩn phần tương ứng.
+
+`topicSummary` là danh sách `{term, depth, total, flagged}` của các chủ đề có reference Error/Hallucinated, để web xếp hạng chủ đề yếu mà không đọc từng subcollection `topics`. `hidden = true` nghĩa là admin đã ẩn kết quả; app hiện "Removed" và lý do thay cho kết quả.
+
+Luồng thao tác admin: web tạo `adminActions/{id}` → tiến trình API claim bằng transaction → kiểm tra lại role → dừng/chạy lại/ẩn/xóa analysis, đổi role hoặc khóa tài khoản bằng Admin SDK → ghi kết quả.
+
+Luồng thông báo admin: web tạo yêu cầu → worker kiểm tra role và người nhận → lưu inbox → FCM. Worker chạy cùng FastAPI hoặc độc lập; xem [`ADMIN_NOTIFICATIONS.md`](ADMIN_NOTIFICATIONS.md). Web không giữ service account hay đọc token thiết bị của user khác.
 
 **Các trường app đọc mà backend phải ghi đúng tên:**
 
@@ -183,6 +194,8 @@ Bốn trường cuối của `topics` và `authorLinks` lấy từ các file kh�
 | `fcmTokens[]` | Bỏ qua và xoá token không còn hợp lệ | App xoá token của máy khi đăng xuất |
 
 Luật truy cập nằm ở `firebase/firestore.rules` và `firebase/storage.rules`. Người dùng chỉ đọc và ghi dữ liệu của mình, không tự đổi được `role`, không ghi được `analyses/**`. File PDF chỉ nhận `application/pdf` dưới 10 MB.
+
+Web admin riêng trong `admin-web/` dùng React + TypeScript + Vite, đọc role từ `users/{uid}` và theo dõi toàn bộ collection `analyses`; chỉ role `admin` được query danh sách này theo Firestore Rules. Người dùng Android đã đăng nhập vẫn đọc được từng analysis theo ID và các references/topics như trước. Web admin không cần cấu hình backend; Firebase Web app config và role admin là điều kiện để đọc dữ liệu thật. Chế độ `/demo` dùng fixture riêng và không kết nối Firebase. Chi tiết cấp role, kiểm thử và demo: [`ADMIN_DASHBOARD.md`](ADMIN_DASHBOARD.md).
 
 ## 8. API backend (qua Tailscale)
 

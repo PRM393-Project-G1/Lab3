@@ -5,6 +5,96 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Server-maintained projection: never expose private profiles or FCM tokens.
+    match /adminUserDirectory/{uid} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // An admin action request: the backend checks the role again, acts and records
+    // the outcome. Nobody edits or deletes a request, so the queue is the audit log.
+    function validAction(data) {
+      return data.keys().hasOnly(['type', 'target', 'requestedBy', 'createdAt', 'status', 'reason', 'role', 'disabled'])
+        && data.keys().hasAll(['type', 'target', 'requestedBy', 'createdAt', 'status'])
+        && data.requestedBy == request.auth.uid
+        && data.status == 'queued'
+        && data.createdAt == request.time
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 200))
+        && data.target is string
+        && (analysisAction(data) || userAction(data));
+    }
+
+    function analysisAction(data) {
+      return data.type in ['cancelAnalysis', 'retryAnalysis', 'hideAnalysis', 'unhideAnalysis', 'deleteAnalysis']
+        && data.target.matches('^[0-9]{4}[.][0-9]{4,5}$')
+        && !('role' in data) && !('disabled' in data);
+    }
+
+    // Nobody changes their own role or account, so an admin cannot lock everyone out alone.
+    function userAction(data) {
+      return data.target.size() > 0 && data.target.size() <= 128 && !data.target.matches('.*/.*')
+        && data.target != request.auth.uid
+        && ((data.type == 'setRole' && data.role in ['admin', 'user'] && !('disabled' in data))
+          || (data.type == 'setDisabled' && data.disabled is bool && !('role' in data)));
+    }
+
+    match /adminActions/{actionId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && actionId.matches('^[A-Za-z0-9_-]{20,80}$')
+        && validAction(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Liveness written by the backend processes with the Admin SDK.
+    match /workerStatus/{name} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminNotificationRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && requestId.matches('^[A-Za-z0-9_-]{20,80}$')
+        && request.resource.data.keys().hasOnly([
+          'title', 'body', 'audience', 'recipientUids', 'requestedBy', 'createdAt', 'status', 'analysisId', 'sendAt'
+        ])
+        // A scheduled send is due between now and 30 days from now.
+        && (!('sendAt' in request.resource.data)
+          || (request.resource.data.sendAt is timestamp
+            && request.resource.data.sendAt > request.time
+            && request.resource.data.sendAt < request.time + duration.value(30, 'd')))
+        && (!('analysisId' in request.resource.data)
+          || (request.resource.data.analysisId is string && request.resource.data.analysisId.matches('^[0-9]{4}[.][0-9]{4,5}$')))
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'queued'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 500
+        && request.resource.data.recipientUids is list
+        && request.resource.data.recipientUids.size() <= 100
+        && request.resource.data.recipientUids.toSet().size() == request.resource.data.recipientUids.size()
+        && ((request.resource.data.audience == 'all' && request.resource.data.recipientUids.size() == 0)
+          || (request.resource.data.audience == 'selected' && request.resource.data.recipientUids.size() > 0));
+      // Submitted content and delivery outcomes cannot be rewritten by a client.
+      // The one change allowed is cancelling a request the worker has not claimed;
+      // the worker's claim transaction re-reads the status, so it never runs both.
+      allow update: if isAdmin()
+        && resource.data.status == 'queued'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledBy', 'cancelledAt'])
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.cancelledAt == request.time;
+      allow delete: if false;
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) && request.resource.data.role == 'user';
@@ -28,9 +118,20 @@ service cloud.firestore {
     }
 
     // Shared results. Only the backend writes them.
-    match /analyses/{analysisId}/{document=**} {
-      allow read: if request.auth != null;
+    match /analyses/{analysisId} {
+      allow get: if request.auth != null;
+      allow list: if isAdmin();
       allow write: if false;
+
+      match /references/{refId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+
+      match /topics/{topicId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
     }
   }
 }

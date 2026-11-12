@@ -339,3 +339,23 @@ class TestAuthorLinks:
         links_ = merge.author_links(pairs)
         assert len(links_) == merge.MAX_AUTHOR_LINKS
         assert links_[0]["similarity"] == (merge.MAX_AUTHOR_LINKS + 5) / 100
+
+
+class TestTopicSummary:
+    def test_keeps_flagged_topics_with_subtree_totals_weakest_first(self):
+        topics = [
+            {"term": "deep learning", "depth": 0, "counts": {"verified": 6, "error": 1, "hallucinated": 1}},
+            {"term": "attention", "depth": 1, "counts": {"verified": 1, "error": 1, "hallucinated": 1}},
+            {"term": "optimization", "depth": 1, "counts": {"verified": 4, "warning": 2}},
+        ]
+        assert merge.topic_summary(topics) == [
+            {"term": "attention", "depth": 1, "total": 3, "flagged": 2},
+            {"term": "deep learning", "depth": 0, "total": 8, "flagged": 2},
+        ]
+
+    def test_is_capped_and_skips_nameless_topics(self):
+        topics = [{"term": f"t{i}", "counts": {"error": 1}} for i in range(merge.MAX_TOPIC_SUMMARY + 5)]
+        topics.append({"term": " ", "counts": {"error": 3}})
+        summary = merge.topic_summary(topics)
+        assert len(summary) == merge.MAX_TOPIC_SUMMARY
+        assert all(row["term"].strip() for row in summary)
